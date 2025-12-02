@@ -1,8 +1,10 @@
 import express, { urlencoded } from "express";
 import dotenv from "dotenv";
+dotenv.config();
 import passport from "passport";
 import dbConnection from "./config/dbConnection.js";
 import AuthRoutes from "./route/Authroutes.js";
+
 import "./config/passportConfig.js";
 
 

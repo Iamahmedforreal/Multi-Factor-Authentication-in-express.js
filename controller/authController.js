@@ -39,12 +39,16 @@ export const login = async (req, res) => {
         AccessToken,
         RefreshToken
     })
-
-
   
 };
 export const logout = async (req, res) => {};
 export const mfa = async (req, res) => {};
 export const resetmfa = async (req, res) => {};
-export const userStatus = async (req, res) => {};
+export const userStatus = async (req, res) => {
+    const user = req.user
+    res.status(200).json({
+        username: user.username,
+        IsMfaActive: user.IsMfaActive
+    })
+};
 export const verify = async (req, res) => {};

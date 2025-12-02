@@ -1,10 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config();
 import bcrypy from "bcrypt";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as JwtStrategy , ExtractJwt  } from "passport-jwt";
 import User from "../models/user.js";
 
 
-
+//local strategy
 passport.use(new LocalStrategy(
   async (username, password, done) => {
 
@@ -26,3 +29,22 @@ passport.use(new LocalStrategy(
    
   
 ));
+//jwt-stragy
+ passport.use(
+        new JwtStrategy(
+            {
+                jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+                secretOrKey: process.env.JWT_SECRET,
+            },
+            async (jwt_payload, done) => {
+                try {
+                    const user = await User.findById(jwt_payload.id);
+                    if (!user) return done(null, false);
+                    return done(null, user);
+                } catch (err) {
+                    return done(err, false);
+                }
+            }
+        )
+    );
+
