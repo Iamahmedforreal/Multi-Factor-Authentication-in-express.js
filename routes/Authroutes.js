@@ -1,5 +1,4 @@
 import express from "express";
-import passport from "passport";
 const router = express.Router();
 
 import { 
@@ -10,10 +9,10 @@ import {
     mfa,
     verify,
     resetmfa
-} from "../controller/authController.js";
+} from "../controllers/authController.js";
 
-router.post("/register",register);
-router.post("/login", passport.authenticate('local' , {session: false}), login);
+router.post("/register", register);
+router.post("/login", login);
 router.get("/logout", logout);
 router.get("/status", userStatus);
 router.post("/2fa/setup", mfa);

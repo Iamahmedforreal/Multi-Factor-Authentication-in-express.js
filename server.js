@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import passport from "passport";
 import dbConnection from "./config/dbConnection.js";
 import AuthRoutes from "./route/Authroutes.js";
+import "./config/passportConfig.js";
+
 
 const app = express();
 
@@ -14,7 +16,7 @@ app.use(urlencoded({ limit: "100mb", extended: true }));
 app.use(passport.initialize());
 
 // Routes
-app.use("/api/auth", AuthRoutes);
+app.use("/api/auth",  AuthRoutes);
 
 const PORT = process.env.PORT || 5000;
 
@@ -23,11 +25,6 @@ app.get('/', (req, res) => {
   res.send('Hello World!')
 });
 
-// Add error handling middleware
-app.use((err, req, res, next) => {
-  console.error("Error:", err);
-  res.status(500).json({ error: err.message });
-});
 
 const startserver = async () => {
     try {
@@ -36,7 +33,7 @@ const startserver = async () => {
         
         const server = app.listen(PORT, '0.0.0.0', () => {
             console.log(`Server is running on http://localhost:${PORT}`);
-            console.log(`Try accessing: http://127.0.0.1:${PORT}`);
+
         });
 
         server.on('error', (error) => {

@@ -1,5 +1,6 @@
 import User from "../models/user.js"
 import bcrypt from "bcrypt";
+import { generateAccessToken , generateRefreshToken } from "../utils/token.js";
 
 
 export const register = async (req, res) => {
@@ -23,7 +24,25 @@ export const register = async (req, res) => {
     }
 };
 
-export const login = async (req, res) => {};
+export const login = async (req, res) => {
+
+    const user = req.user;
+
+    const AccessToken = generateAccessToken(user);
+    const RefreshToken = generateRefreshToken(user);
+
+    res.status(200).json({
+        massage: "User logged in",
+        id: user._id,
+        username: user.username,
+        IsMfaActive: user.IsMfaActive,
+        AccessToken,
+        RefreshToken
+    })
+
+
+  
+};
 export const logout = async (req, res) => {};
 export const mfa = async (req, res) => {};
 export const resetmfa = async (req, res) => {};
