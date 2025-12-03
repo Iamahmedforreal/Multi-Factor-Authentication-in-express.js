@@ -8,13 +8,6 @@ import speakeasy from "speakeasy";
 import qrCode from "qrcode";
 import { generateAccessToken , generateRefreshToken } from "../utils/token.js";
 
-
-
-
-
-
-
-
 export const register = async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -25,6 +18,7 @@ export const register = async (req, res) => {
             username,
             password: hashPassword,
             IsMfaActive: false,
+            twoFactorSecret: "",
         });
 
         await newUser.save();
@@ -39,47 +33,13 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
 
     const user = req.user;
-    const daysToexpire = 7;
-    const expirationDate = new Date(Date.now() + daysToexpire * 24 * 60 * 60 * 1000);
-    const ip = req.ip || req.connection.remoteAddress;
-    const device = req.headers["user-agent"];
-
-   
-
     const AccessToken = generateAccessToken(user);
-    const newtoken = generateRefreshToken(user);
-
-
-    const refreshTokenDoc  = new RefreshTokenModel({
-        userId: user._id,
-        token: newtoken,
-        expiresAt: expirationDate,
-        device:device,
-        ip_address:ip,
-    })
-
-    try{
-        await refreshTokenDoc .save();
-
-    }catch(err){
-        console.log("Refresh token not saved" , err);
-    }
-
-// only for testing cookies need to allways be httponly and use https
-    res.cookie("refreshToken", newtoken ,{
-        httpOnly: false,
-        secure: false,
-        sameSite: "none",
-    })
-
-
     res.status(200).json({
         massage: "User logged in",
         id: user._id,
         username: user.username,
         IsMfaActive: user.IsMfaActive,
         AccessToken,
-        newtoken
     })
   
 };
@@ -98,8 +58,8 @@ export const logout = async (req, res) => {
 
     res.clearCookie("refreshToken" ,
         {
-            httpOnly: false,
-            secure: false,
+            httpOnly: true,
+            secure: true,
             sameSite: "none",
         }
     );
@@ -116,13 +76,13 @@ try{
     const user = req.user;
     if(!user) return res.status(403).json({message: "User not found"});
 
-    const secret = speakeasy.generateSecret({length: 20});
+    const secret = speakeasy.generateSecret();
+    console.log(secret);
 
-    user.twoFactorSecret = secret.base32;
-
-    user.IsMfaActive = true;
-
+    
+    user.TwoFactorSecret = secret.base32;
     await user.save();
+
 
     const url = speakeasy.otpauthURL({
         secret: secret.base32,
@@ -137,19 +97,25 @@ try{
         secret: secret.base32,
         qrimage,
     })
-    
 
-
-
-  
-    
 
 }catch(err){
     console.log(err);
 }
 };
-export const resetmfa = async (req, res) => {};
-export const verifymfa = async (req, res) => {};
+export const resetmfa = async (req, res) => {
+    try{
+    const user = req.user;
+    user.twoFactorSecret = "";
+    user.IsMfaActive = false;
+    await user.save();
+    res.status(202).json("MFA reset successfully");
+    }catch(err){
+        console.log(err);
+    }
+
+};
+
 export const userStatus = async (req, res) => {
     const user = req.user
     res.status(200).json({
@@ -157,24 +123,70 @@ export const userStatus = async (req, res) => {
         IsMfaActive: user.IsMfaActive
     })
 };
-export const verify = async (req, res) => {};
+export const verify = async (req, res) => {
+    try{
+    const {token} = req.body;
+    const user = req.user;
+
+    const verfied = speakeasy.totp.verify({
+        secret: user.TwoFactorSecret,
+        encoding: "base32",
+        token
+    });
+
+    if(!verfied) {
+        return res.status(403).json({massage:"code not correct"} );
+    }
+    const AceessToken = generateAccessToken(user);
+    const newRefrshToken = generateRefreshToken(user);
+
+    const EXPIRES_AT = 7;
+    const experation = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
+    const ip = req.headers["x-forwarded-for"] || req.ip;
+    const Userdevice = req.headers["user-agent"];
+
+    const refreshTokenDocument = new RefreshTokenModel({
+        userId: user._id,
+        token: newRefrshToken,
+        expiresAt: experation,
+        device: Userdevice,
+        ip_address:ip
+    }
+    );
+
+    await refreshTokenDocument.save();
+
+    res.cookie("refreshToken", newRefrshToken,{
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    });
+
+    user.IsMfaActive = true;
+    await user.save();
+
+    res.status(200).json({
+        AceessToken: AceessToken
+
+    })
+
+}catch(err){
+    console.log(err);
+}
+};
 
 export const refresh = async (req, res) => {
 
     const RefreshToken = req.cookies.RefreshToken;
     if(!RefreshToken) return res.sendStatus(401);
 
-    const user = await user.findOne({RefreshToken});
+    const user = await User.findOne({RefreshToken});
     if(!user) return res.sendStatus(403);
 
     jwt.verify(RefreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
         if(err) return res.sendStatus(403);
 
-        const AccessToken = jwt.sign(
-            {id: user._id},
-            process.env.JWT_SECRET,
-            {expiresIn: "7m"}
-        );
+        const AccessToken = generateAccessToken(user);
 
         res.json({
             AccessToken
