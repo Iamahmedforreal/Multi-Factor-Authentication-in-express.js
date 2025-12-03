@@ -38,8 +38,7 @@ passport.use(
     },
     async (playload , done) => {
       try{
-
-        const user = await findById(playload.id);
+        const user = await User.findById(playload.id);
         if (user) return done(null , user);
         else return done(null , false , {massage: "User not found"});        
       }catch(err){

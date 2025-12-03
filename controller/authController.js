@@ -4,7 +4,10 @@ import User from "../models/user.js"
 import RefreshTokenModel from "../models/token.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import speakeasy from "speakeasy";
+import qrCode from "qrcode";
 import { generateAccessToken , generateRefreshToken } from "../utils/token.js";
+
 
 
 
@@ -101,18 +104,52 @@ export const logout = async (req, res) => {
         }
     );
     res.sendStatus(204);
-
-
     }catch(err){
         console.log(err);
-    }
+    }   
+};
+export const mfa = async (req, res) => {
+  
+ 
+ 
+try{
+    const user = req.user;
+    if(!user) return res.status(403).json({message: "User not found"});
 
+    const secret = speakeasy.generateSecret({length: 20});
+
+    user.twoFactorSecret = secret.base32;
+
+    user.IsMfaActive = true;
+
+    await user.save();
+
+    const url = speakeasy.otpauthURL({
+        secret: secret.base32,
+        label: `${req.user.username}`,
+        issuer:"authentication.com",
+        encoding:"base32"
+    });
+
+    const qrimage = await qrCode.toDataURL(url);
+
+    res.status(200).json({
+        secret: secret.base32,
+        qrimage,
+    })
     
 
-   
+
+
+  
+    
+
+}catch(err){
+    console.log(err);
+}
 };
-export const mfa = async (req, res) => {};
 export const resetmfa = async (req, res) => {};
+export const verifymfa = async (req, res) => {};
 export const userStatus = async (req, res) => {
     const user = req.user
     res.status(200).json({
@@ -144,9 +181,4 @@ export const refresh = async (req, res) => {
         })
 
     });
-
-
-
- 
-
 };
