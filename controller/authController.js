@@ -1,6 +1,15 @@
+import dotenv from "dotenv";
+dotenv.config();
 import User from "../models/user.js"
+import refreshToken from "../models/token.js";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { generateAccessToken , generateRefreshToken } from "../utils/token.js";
+
+
+
+
+
 
 
 export const register = async (req, res) => {
@@ -23,13 +32,43 @@ export const register = async (req, res) => {
         res.status(500).json({ error: "Server error" });
     }
 };
-
+//authentication
 export const login = async (req, res) => {
 
     const user = req.user;
+    const daysToexpire = 7;
+    const expirationDate = new Date(Date.now() + daysToexpire * 24 * 60 * 60 * 1000);
+    const ip = req.ip || req.connection.remoteAddress;
+    const device = req.headers["user-agent"];
+
+   
 
     const AccessToken = generateAccessToken(user);
-    const RefreshToken = generateRefreshToken(user);
+    const newtoken = generateRefreshToken(user);
+
+
+    const RefreshToken = new refreshToken({
+        userId: user._id,
+        token: newtoken,
+        expiresAt: expirationDate,
+        device:device,
+        ip_address:ip,
+    })
+
+    try{
+        await RefreshToken.save();
+
+    }catch(err){
+        console.log("Refresh token not saved" , err);
+    }
+
+
+    res.cookie("refreshToken", newtoken ,{
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    })
+
 
     res.status(200).json({
         massage: "User logged in",
@@ -37,7 +76,7 @@ export const login = async (req, res) => {
         username: user.username,
         IsMfaActive: user.IsMfaActive,
         AccessToken,
-        RefreshToken
+        newtoken
     })
   
 };
@@ -52,3 +91,32 @@ export const userStatus = async (req, res) => {
     })
 };
 export const verify = async (req, res) => {};
+
+export const refresh = async (req, res) => {
+
+    const RefreshToken = req.cookies.RefreshToken;
+    if(!RefreshToken) return res.sendStatus(401);
+
+    const user = await user.findOne({RefreshToken});
+    if(!user) return res.sendStatus(403);
+
+    jwt.verify(RefreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
+        if(err) return res.sendStatus(403);
+
+        const AccessToken = jwt.sign(
+            {id: user._id},
+            process.env.JWT_SECRET,
+            {expiresIn: "7m"}
+        );
+
+        res.json({
+            AccessToken
+        })
+
+    });
+
+
+
+ 
+
+};
