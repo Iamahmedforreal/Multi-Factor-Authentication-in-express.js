@@ -11,6 +11,7 @@ const RefreshTokenSchema  = new mongoose.Schema({
     token:{
         type: String,
         required: true,
+        unique: true,
     }, 
     
     expiresAt:{
@@ -28,6 +29,6 @@ const RefreshTokenSchema  = new mongoose.Schema({
 
 })
 
-const refreshToken = mongoose.model("RefreshToken", RefreshTokenSchema);
+const RefreshTokenModel = mongoose.model("RefreshToken", RefreshTokenSchema);
 
-export default refreshToken;
+export default RefreshTokenModel;

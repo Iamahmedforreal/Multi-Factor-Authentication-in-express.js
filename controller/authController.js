@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 import User from "../models/user.js"
-import refreshToken from "../models/token.js";
+import RefreshTokenModel from "../models/token.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { generateAccessToken , generateRefreshToken } from "../utils/token.js";
@@ -47,7 +47,7 @@ export const login = async (req, res) => {
     const newtoken = generateRefreshToken(user);
 
 
-    const RefreshToken = new refreshToken({
+    const refreshTokenDoc  = new RefreshTokenModel({
         userId: user._id,
         token: newtoken,
         expiresAt: expirationDate,
@@ -56,16 +56,16 @@ export const login = async (req, res) => {
     })
 
     try{
-        await RefreshToken.save();
+        await refreshTokenDoc .save();
 
     }catch(err){
         console.log("Refresh token not saved" , err);
     }
 
-
+// only for testing cookies need to allways be httponly and use https
     res.cookie("refreshToken", newtoken ,{
-        httpOnly: true,
-        secure: true,
+        httpOnly: false,
+        secure: false,
         sameSite: "none",
     })
 
@@ -82,12 +82,12 @@ export const login = async (req, res) => {
 };
 export const logout = async (req, res) => {
     
-   const refreshtokenValue = req.cookies.refreshToken;
-   if(!refreshtokenValue) return res.sendStatus(204);
-
+   const refreshToken = req.cookies.refreshToken;
+   if(!refreshToken) return res.sendStatus(204);
     try{
 
-    const result = await refreshToken.deleteOne({token:refreshtokenValue});
+    
+    const result = await RefreshTokenModel.deleteOne({token: refreshToken });
 
     if(result.deletedCount === 0){
         console.log("Logout: Token not found in DB, proceeding to clear cookie")
@@ -95,8 +95,8 @@ export const logout = async (req, res) => {
 
     res.clearCookie("refreshToken" ,
         {
-            httpOnly: true,
-            secure: true,
+            httpOnly: false,
+            secure: false,
             sameSite: "none",
         }
     );
