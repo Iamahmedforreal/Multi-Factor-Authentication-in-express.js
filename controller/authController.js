@@ -80,7 +80,37 @@ export const login = async (req, res) => {
     })
   
 };
-export const logout = async (req, res) => {};
+export const logout = async (req, res) => {
+    
+   const refreshtokenValue = req.cookies.refreshToken;
+   if(!refreshtokenValue) return res.sendStatus(204);
+
+    try{
+
+    const result = await refreshToken.deleteOne({token:refreshtokenValue});
+
+    if(result.deletedCount === 0){
+        console.log("Logout: Token not found in DB, proceeding to clear cookie")
+    }
+
+    res.clearCookie("refreshToken" ,
+        {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+        }
+    );
+    res.sendStatus(204);
+
+
+    }catch(err){
+        console.log(err);
+    }
+
+    
+
+   
+};
 export const mfa = async (req, res) => {};
 export const resetmfa = async (req, res) => {};
 export const userStatus = async (req, res) => {

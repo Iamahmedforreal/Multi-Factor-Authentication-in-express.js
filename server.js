@@ -2,6 +2,7 @@ import express, { urlencoded } from "express";
 import dotenv from "dotenv";
 dotenv.config();
 import passport from "passport";
+import cookieParser from "cookie-parser";
 import dbConnection from "./config/dbConnection.js";
 import AuthRoutes from "./route/Authroutes.js";
 
@@ -10,12 +11,14 @@ import "./config/passportConfig.js";
 
 const app = express();
 
+
 dotenv.config();
 
 // Middleware
 app.use(express.json({ limit: "100mb" }));
 app.use(urlencoded({ limit: "100mb", extended: true }));
 app.use(passport.initialize());
+app.use(cookieParser());
 
 // Routes
 app.use("/api/auth",  AuthRoutes);
