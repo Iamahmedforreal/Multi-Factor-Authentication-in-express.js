@@ -15,8 +15,17 @@ const generateRefreshToken = (user) =>{
         {expiresIn: "7d"}
     )
 }
+const genarateTemporaryToken = (user) => {
+    return jwt.sign(
+        {id: user._id},
+        process.env.JWT_TEMPOROY,
+        {expiresIn: "10m"}
+    )
+}
 
 export {
     generateAccessToken,
-    generateRefreshToken
+    generateRefreshToken,
+    genarateTemporaryToken
+
 }

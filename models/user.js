@@ -14,11 +14,14 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    MfaSetup: {
+        type: Boolean,
+        default: false,
+    },
 
     TwoFactorSecret: {
         type: String,
-        default: "",
-    
+       
     
     },
  

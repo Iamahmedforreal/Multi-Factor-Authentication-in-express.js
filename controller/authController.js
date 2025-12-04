@@ -6,7 +6,8 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
-import { generateAccessToken , generateRefreshToken } from "../utils/token.js";
+import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
+
 
 export const register = async (req, res) => {
     try {
@@ -22,7 +23,7 @@ export const register = async (req, res) => {
         });
 
         await newUser.save();
-        res.status(200).json({ message: "User created" });
+        res.status(200).json({ message: "User created successfully"});
 
     } catch (err) {
         console.log(err);
@@ -32,17 +33,52 @@ export const register = async (req, res) => {
 //authentication
 export const login = async (req, res) => {
 
+    try{
     const user = req.user;
-    const AccessToken = generateAccessToken(user);
-    res.status(200).json({
-        massage: "User logged in",
-        id: user._id,
-        username: user.username,
-        IsMfaActive: user.IsMfaActive,
-        AccessToken,
+
+    if(user.IsMfaActive == true ){
+        const temp = genarateTemporaryToken(user);
+        res.status(200).json({
+            massage: "verify your user",
+            temp: temp
+    });    
+    }
+    const AccessToken = generateAccessToken(user)
+    const RefreshToken = generateRefreshToken(user)
+    const EXPIRES_AT = 7;
+    const expirestion = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
+    const ip = req.headers["x-forwarded-for"] || req.ip;
+    const Userdevice = req.headers["user-agent"];
+
+    const TokenDoment = new RefreshTokenModel({
+        userId: user._id,
+        token: RefreshToken,
+        expiresAt: expirestion,
+        device: Userdevice,
+        ip_address:ip
     })
-  
+
+    await TokenDoment.save();
+
+    res.cookie("refreshToken", RefreshToken,{
+        httpOnly: false,
+        secure: false,
+        sameSite: "none",
+    });
+    res.status(202).json({
+        massage:"user logged in ",
+        AccessToken: AccessToken,
+    })
+
+    
+   
+    }catch(err){
+        console.log(err);
+    }
 };
+
+
+//logout router for revoking and deleting refresh from db
 export const logout = async (req, res) => {
     
    const refreshToken = req.cookies.refreshToken;
@@ -58,8 +94,8 @@ export const logout = async (req, res) => {
 
     res.clearCookie("refreshToken" ,
         {
-            httpOnly: true,
-            secure: true,
+            httpOnly: false,
+            secure: false,
             sameSite: "none",
         }
     );
@@ -68,6 +104,7 @@ export const logout = async (req, res) => {
         console.log(err);
     }   
 };
+//setup router
 export const mfa = async (req, res) => {
   
  
@@ -157,8 +194,8 @@ export const verify = async (req, res) => {
     await refreshTokenDocument.save();
 
     res.cookie("refreshToken", newRefrshToken,{
-        httpOnly: true,
-        secure: true,
+        httpOnly: false,
+        secure: false,
         sameSite: "none",
     });
 
