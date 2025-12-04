@@ -9,6 +9,7 @@ import AuthRoutes from "./route/Authroutes.js";
 import "./config/passportConfig.js";
 
 
+
 const app = express();
 
 
@@ -17,7 +18,7 @@ dotenv.config();
 // Middleware
 app.use(express.json({ limit: "100mb" }));
 app.use(urlencoded({ limit: "100mb", extended: true }));
-app.use(passport.initialize());
+app.use(passport.initialize()); 
 app.use(cookieParser());
 
 // Routes

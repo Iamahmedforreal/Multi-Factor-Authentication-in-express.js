@@ -38,7 +38,7 @@ export const login = async (req, res) => {
 
     if(user.IsMfaActive == true ){
         const temp = genarateTemporaryToken(user);
-        res.status(200).json({
+        return res.status(200).json({
             massage: "verify your user",
             temp: temp
     });    
@@ -65,7 +65,8 @@ export const login = async (req, res) => {
         secure: false,
         sameSite: "none",
     });
-    res.status(202).json({
+
+    return res.status(202).json({
         massage:"user logged in ",
         AccessToken: AccessToken,
     })
