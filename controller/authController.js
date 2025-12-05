@@ -175,7 +175,7 @@ export const verify = async (req, res) => {
     if(!verfied) {
         return res.status(403).json({massage:"code not correct"} );
     }
-    const AceessToken = generateAccessToken(user);
+const AceessToken = generateAccessToken(user);
     const newRefrshToken = generateRefreshToken(user);
 
     const EXPIRES_AT = 7;
@@ -190,7 +190,7 @@ export const verify = async (req, res) => {
         device: Userdevice,
         ip_address:ip
     }
-    );
+    );    
 
     await refreshTokenDocument.save();
 
@@ -215,20 +215,27 @@ export const verify = async (req, res) => {
 
 export const refresh = async (req, res) => {
 
-    const RefreshToken = req.cookies.RefreshToken;
-    if(!RefreshToken) return res.sendStatus(401);
+ 
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) return res.sendStatus(401);
 
-    const user = await User.findOne({RefreshToken});
-    if(!user) return res.sendStatus(403);
+    
+    const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken });
+    if (!tokenDoc) return res.sendStatus(403);
 
-    jwt.verify(RefreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
-        if(err) return res.sendStatus(403);
+    
+    jwt.verify(refreshToken, process.env.REFRESH_SECRET, async (err, decoded) => {
+        if (err) return res.sendStatus(403);
 
-        const AccessToken = generateAccessToken(user);
+       
+        const user = await User.findById(tokenDoc.userId);
+        if (!user) return res.sendStatus(404);
 
-        res.json({
-            AccessToken
-        })
+        
+        const accessToken = generateAccessToken(user);
 
+        res.json({ accessToken });
     });
 };
+
+
