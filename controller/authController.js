@@ -112,13 +112,14 @@ export const mfa = async (req, res) => {
  
 try{
     const user = req.user;
-    if(!user) return res.status(403).json({message: "User not found"});
+    
 
     const secret = speakeasy.generateSecret();
     console.log(secret);
 
     
     user.TwoFactorSecret = secret.base32;
+    user.IsMfaActive = true;
     await user.save();
 
 
@@ -175,7 +176,7 @@ export const verify = async (req, res) => {
     if(!verfied) {
         return res.status(403).json({massage:"code not correct"} );
     }
-const AceessToken = generateAccessToken(user);
+    const AceessToken = generateAccessToken(user);
     const newRefrshToken = generateRefreshToken(user);
 
     const EXPIRES_AT = 7;
@@ -200,8 +201,7 @@ const AceessToken = generateAccessToken(user);
         sameSite: "none",
     });
 
-    user.IsMfaActive = true;
-    await user.save();
+   
 
     res.status(200).json({
         AceessToken: AceessToken
@@ -213,6 +213,7 @@ const AceessToken = generateAccessToken(user);
 }
 };
 
+//refresh token for new token
 export const refresh = async (req, res) => {
 
  
@@ -224,7 +225,7 @@ export const refresh = async (req, res) => {
     if (!tokenDoc) return res.sendStatus(403);
 
     
-    jwt.verify(refreshToken, process.env.REFRESH_SECRET, async (err, decoded) => {
+    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, async (err, decoded) => {
         if (err) return res.sendStatus(403);
 
        
