@@ -5,7 +5,6 @@ const userSchema = new mongoose.Schema({
         required: true,
         unique: true,
     },
-
     password: {
         type: String,
         required: true,
@@ -21,6 +20,12 @@ const userSchema = new mongoose.Schema({
     isemailVerified: {
         type: Boolean,
         default: false,
+    },
+    resetPasswordToken: {
+        type: String,
+    },
+    resetPasswordTokenExpires: {
+        type: Date,
     },
     emailVerificationToken: {
         type: String,

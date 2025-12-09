@@ -22,5 +22,16 @@ export const  sendEmailVerification = async(email , token) =>{
 }
 
 
+export const  sendEmailResetPassword = async(email , token) =>{
+    const link = `http://localhost:7000/api/auth/reset-password?token=${token}`
+    await trasnporter.sendMail({
+        to:email,
+        subject:"reset password",
+        html:`<p> Click to verify your email </p>
+             <a href="${link}">${link}</a>`
+    })
+}
+
+
 
 export default trasnporter;

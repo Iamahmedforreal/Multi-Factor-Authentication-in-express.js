@@ -7,20 +7,20 @@ import jwt from "jsonwebtoken";
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
 import crypto from "crypto";
-import {sendEmailVerification} from "../utils/sendEmail.js";
+import { z } from "zod";
+import { registerSchema } from "../validators/registerValidation.js";
+import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 
 
 export const register = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const data = registerSchema.parse(req.body);
+        const { email, password } = data;
+
 
         const hashPassword = await bcrypt.hash(password, 10);
-        const user = await User.findOne({ email });
-        console.log(user);
-
        
-
         const token = crypto.randomBytes(32).toString("hex");
 
 
@@ -279,5 +279,28 @@ export const verifyEmail = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+export const forgotPassword = async (req, res) => {
+    try{
+    const {email} = req.body;
+
+    const user = await User.findOne({email});
+
+    if(!user) return res.status(400).json("user does not exist");
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    
+
+    user.passwordResetToken = token;
+    user.passwordResetExpires = Date.now() + 1000 * 60 * 15;
+    await user.save();
+
+    await sendEmailResetPassword(user.email, token);
+    res.status(200).json("password reset email sent");
+    }catch(err){
+        console.log(err);
+    }
+    
+}
 
 
