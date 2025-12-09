@@ -5,7 +5,7 @@ import passport from "passport";
 import cookieParser from "cookie-parser";
 import dbConnection from "./config/dbConnection.js";
 import AuthRoutes from "./route/Authroutes.js";
-
+import MongoSanitize from "express-mongo-sanitize";
 import "./config/passportConfig.js";
 
 
@@ -13,11 +13,13 @@ import "./config/passportConfig.js";
 const app = express();
 
 
+
 dotenv.config();
 
 // Middleware
 app.use(express.json({ limit: "100mb" }));
 app.use(urlencoded({ limit: "100mb", extended: true }));
+app.use(MongoSanitize());
 app.use(passport.initialize()); 
 app.use(cookieParser());
 
@@ -52,3 +54,4 @@ const startserver = async () => {
 };
 
 startserver();
+
