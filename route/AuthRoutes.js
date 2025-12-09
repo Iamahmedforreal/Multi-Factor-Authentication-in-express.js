@@ -12,7 +12,9 @@ import {
     resetmfa,
     refresh,
     verifyEmail,
-    forgotPassword
+    forgotPassword,
+    resetPassword,
+
 
 } from "../controller/authController.js";
 
@@ -27,5 +29,6 @@ router.post("/2fa/reset", passport.authenticate('jwt',{session:false}) ,resetmfa
 router.get("/refresh" ,refresh);
 router.get("/verify-email" , verifyEmail);
 router.post("/forgot-password", forgotPassword);
+router.post("/reset-password" , resetPassword)
 
 export default router;
