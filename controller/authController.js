@@ -255,21 +255,29 @@ export const refresh = async (req, res) => {
 };
 
 export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;   
 
-    const {token} = req.query;
-    const user = await User.findOne({ emailVerificationToken: token ,
-                    emailVerificationTokenExpires: { $gt: Date.now() } 
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationTokenExpires: { $gt: Date.now() }
     });
 
-    if(!user) return console.log("user not found");
+    if (!user) {
+      return res.status(400).send("Invalid or expired token");
+    }
 
     user.isemailVerified = true;
-    user.emailVerificationToken = null;
-    user.emailVerificationTokenExpires = null;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationTokenExpires = undefined;
+
     await user.save();
 
-    res.status.json({massage: "email verified successfully"});
-    
+    res.send("Email verified successfully");
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Server error");
+  }
+};
 
-}
 
