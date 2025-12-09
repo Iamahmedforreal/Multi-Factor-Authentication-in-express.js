@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import nodemailer from "nodemailer";
 
 const trasnporter = nodemailer.createTransport({
@@ -8,6 +10,16 @@ const trasnporter = nodemailer.createTransport({
 
     }
 })
+
+export const  sendEmailVerification = async(email , token) =>{
+    const link = `http://localhost3000/verify-email?token=${token}`
+    await trasnporter.sendMail({
+        to:email,
+        subject:"verify email",
+        html:`<p> Click to verify your email </p>
+             <a href="${link}">${link}</a>`
+    })
+}
 
 
 

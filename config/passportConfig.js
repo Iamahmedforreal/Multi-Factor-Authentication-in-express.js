@@ -9,7 +9,9 @@ import User from "../models/user.js";
 
 //local strategy
 passport.use(new LocalStrategy(
-   {usernameField:"email"}, async( email, password, done) => {
+   {usernameField:"email" , passwordField:"password"}, 
+   
+   async( email, password, done) => {
 
     try{
     let user = await User.findOne({email});

@@ -6,24 +6,38 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
+import crypto from "crypto";
+import {sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 
 
 export const register = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { email, password } = req.body;
 
         const hashPassword = await bcrypt.hash(password, 10);
+        const user = await User.findOne({ email });
+        console.log(user);
+
+       
+
+        const token = crypto.randomBytes(32).toString("hex");
+
 
         let newUser = new User({
-            username,
+            email,
             password: hashPassword,
             IsMfaActive: false,
             twoFactorSecret: "",
+            emailVerificationToken: token,
+            emailVerificationTokenExpires: Date.now() + 3600000
         });
 
         await newUser.save();
-        res.status(200).json({ message: "User created successfully"});
+
+        await sendEmailVerification(newUser.email , token);
+
+        res.status(200).json({ message: "User created successfully please verify your email"});
 
     } catch (err) {
         console.log(err);
@@ -45,6 +59,7 @@ export const login = async (req, res) => {
     }
     const AccessToken = generateAccessToken(user)
     const RefreshToken = generateRefreshToken(user)
+    
     const EXPIRES_AT = 7;
     const expirestion = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
     const ip = req.headers["x-forwarded-for"] || req.ip;
@@ -239,4 +254,22 @@ export const refresh = async (req, res) => {
     });
 };
 
+export const verifyEmail = async (req, res) => {
+
+    const {token} = req.query;
+    const user = await User.findOne({ emailVerificationToken: token ,
+                    emailVerificationTokenExpires: { $gt: Date.now() } 
+    });
+
+    if(!user) return console.log("user not found");
+
+    user.isemailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationTokenExpires = null;
+    await user.save();
+
+    res.status.json({massage: "email verified successfully"});
+    
+
+}
 

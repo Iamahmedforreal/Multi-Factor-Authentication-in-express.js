@@ -1,10 +1,11 @@
 import mongoose from "mongoose";
 const userSchema = new mongoose.Schema({
-    username: {
+   email: {
         type: String,
-        unique: true,
         required: true,
+        unique: true,
     },
+
     password: {
         type: String,
         required: true,
@@ -17,6 +18,17 @@ const userSchema = new mongoose.Schema({
     TwoFactorSecret: {
         type: String,
     },
+    isemailVerified: {
+        type: Boolean,
+        default: false,
+    },
+    emailVerificationToken: {
+        type: String,
+    },
+    emailVerificationTokenExpires: {
+        type: Date,
+    },
+
     createdAt: {
         type: Date,
         default: Date.now,

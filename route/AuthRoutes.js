@@ -11,6 +11,7 @@ import {
     verify,
     resetmfa,
     refresh,
+    verifyEmail,
 
 } from "../controller/authController.js";
 
@@ -23,5 +24,6 @@ router.post("/2fa/setup" , passport.authenticate('temp-jwt', {session:false}), m
 router.post("/2fa/verify" , passport.authenticate('temp-jwt', {session:false}), verify)
 router.post("/2fa/reset", passport.authenticate('jwt',{session:false}) ,resetmfa);
 router.get("/refresh" ,refresh);
+router.get("/verify-email" , verifyEmail)
 
 export default router;
