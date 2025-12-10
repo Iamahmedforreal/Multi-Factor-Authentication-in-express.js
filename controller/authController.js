@@ -13,6 +13,7 @@ import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 
 
+
 export const register = async (req, res) => {
     try {
         const data = registerSchema.parse(req.body);
@@ -28,9 +29,9 @@ export const register = async (req, res) => {
             email,
             password: hashPassword,
             IsMfaActive: false,
-            twoFactorSecret: "",
             emailVerificationToken: token,
-            emailVerificationTokenExpires: Date.now() + 3600000
+            emailVerificationTokenExpires: Date.now() + 3600000,
+            twoFactorSecret: "",
         });
 
         await newUser.save();
@@ -60,6 +61,7 @@ export const login = async (req, res) => {
     const AccessToken = generateAccessToken(user)
     const RefreshToken = generateRefreshToken(user)
     
+    
     const EXPIRES_AT = 7;
     const expirestion = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
     const ip = req.headers["x-forwarded-for"] || req.ip;
@@ -76,8 +78,8 @@ export const login = async (req, res) => {
     await TokenDoment.save();
 
     res.cookie("refreshToken", RefreshToken,{
-        httpOnly: false,
-        secure: false,
+        httpOnly: true,
+        secure: true,
         sameSite: "none",
     });
 
@@ -110,8 +112,8 @@ export const logout = async (req, res) => {
 
     res.clearCookie("refreshToken" ,
         {
-            httpOnly: false,
-            secure: false,
+            httpOnly: true,
+            secure: true,
             sameSite: "none",
         }
     );
@@ -308,6 +310,8 @@ export const resetPassword = async (req, res) => {
      const {token} = req.query;
      const {Newpassword} = req.body;
 
+
+
      const user = await User.findOne({
         resetPasswordToken: token,
         resetPasswordTokenExpires: { $gt: Date.now() }
@@ -328,9 +332,6 @@ export const resetPassword = async (req, res) => {
     }catch(err){
         console.log(err);
     }
-     
-
-     
 }
 
 
