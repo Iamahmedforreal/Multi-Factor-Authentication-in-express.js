@@ -61,7 +61,6 @@ export const login = async (req, res) => {
     const AccessToken = generateAccessToken(user)
     const RefreshToken = generateRefreshToken(user)
     
-    
     const EXPIRES_AT = 7;
     const expirestion = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
     const ip = req.headers["x-forwarded-for"] || req.ip;
@@ -290,10 +289,11 @@ export const forgotPassword = async (req, res) => {
     if(!user) return res.status(400).json("user does not exist");
 
     const token = crypto.randomBytes(32).toString("hex");
+    const hashToken = crypto.createHash("sha256").update(token).digest("hex");
 
     
 
-    user.resetPasswordToken = token;
+    user.resetPasswordToken = hashToken;
     user.resetPasswordTokenExpires = Date.now() + 1000 * 60 * 15;
     await user.save();
 
