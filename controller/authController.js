@@ -148,9 +148,12 @@ try{
 
     const qrimage = await qrCode.toDataURL(url);
 
+    const token = genarateTemporaryToken(user);
+
     res.status(200).json({
         secret: secret.base32,
         qrimage,
+        token
     })
 
 
