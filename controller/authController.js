@@ -11,7 +11,14 @@ import { z } from "zod";
 import { registerSchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
+import { handleError , SaveRefreshToke } from "../middleware/helper.js";
 
+
+const RESET_PASSWORD_EXPIRY = 1000 * 60 * 15;
+const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
+const MAX_LOGIN_ATTEMPT = 5;
+const LOCK_OUT_DURATION = 15 * 60 * 1000;
+const MAX_ACTIVE_SESSION = 5;
 
 
 export const register = async (req, res) => {
