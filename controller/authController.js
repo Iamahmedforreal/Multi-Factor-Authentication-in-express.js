@@ -11,7 +11,9 @@ import { z } from "zod";
 import { registerSchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
-import { handleError , SaveRefreshToke } from "../middleware/helper.js";
+import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction } from "../utils/helper.js";
+import AuditLog from "../models/AuditLog.js";
+
 
 
 const RESET_PASSWORD_EXPIRY = 1000 * 60 * 15;
@@ -24,32 +26,40 @@ const MAX_ACTIVE_SESSION = 5;
 export const register = async (req, res) => {
     try {
         const data = registerSchema.parse(req.body);
-        const { email, password } = data;
+        const {email , password} = data;
 
+        const user = await User.findOne({email:email.toLowerCase()});
+        if (user){
+            return res.status(400).json({massage:"user already exist"});
+        }
 
-        const hashPassword = await bcrypt.hash(password, 10);
-       
+        const hashedPassword = await bcrypt.hash(password, 12);
         const token = crypto.randomBytes(32).toString("hex");
+        const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
-
-        let newUser = new User({
-            email,
-            password: hashPassword,
-            IsMfaActive: false,
-            emailVerificationToken: token,
-            emailVerificationTokenExpires: Date.now() + 3600000,
-            twoFactorSecret: "",
+        const newUser = new User({
+            email: email.toLowerCase(),
+            password: hashedPassword,
+            emailVerificationToken: hashedToken,
+            emailVerificationTokenExpires: Date.now() + EMAIL_VERIFICATION_EXPIRY,
+            TwoFactorSecret: "",
+            IsMfaActive: false
         });
 
         await newUser.save();
 
-        await sendEmailVerification(newUser.email , token);
+        await AuditLogFunction(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
 
-        res.status(200).json({ message: "User created successfully please verify your email"});
+        sendEmailVerification(newUser.email, token);
+        
+      res.status(201).json({massage:"user registered successfully verify email"});
 
     } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: "Server error" });
+        if (err == 'ZodError'){
+            return  res.status(400).json({massage:"input not valid"});
+        }
+        console.log("error:" ,err);
+        
     }
 };
 //authentication

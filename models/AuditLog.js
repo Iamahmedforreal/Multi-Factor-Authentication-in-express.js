@@ -1,0 +1,44 @@
+import mongoose from "mongoose";
+
+const AuditLogSchema = new mongoose.Schema({
+    userId:{
+        type: mongoose.Types.ObjectId,
+        ref: "User",  
+        index:true,  
+    },
+    action:{
+        type: String,
+        required: true,
+        enum: [
+            'USER_REGISTERED', 'LOGIN_SUCCESS', 'LOGIN_MFA_REQUIRED',
+            'LOGOUT', 'LOGOUT_ALL_SESSIONS', 'SESSION_REVOKED',
+            'MFA_SETUP_INITIATED', 'MFA_ENABLED', 'MFA_DISABLED',
+            'MFA_VERIFY_SUCCESS', 'MFA_VERIFY_FAILED',
+            'EMAIL_VERIFIED', 'PASSWORD_RESET_REQUESTED',
+            'PASSWORD_RESET_COMPLETED', 'PASSWORD_CHANGED',
+            'PASSWORD_CHANGE_FAILED'
+        ],
+
+        index:true,
+    },
+    ip:{
+        type: String,
+    },
+    userAgent :{
+        type: String,    
+    },
+    metadata:{
+        type: mongoose.Schema.Types.Mixed,
+    },
+    timestamp:{
+        type: Date,
+        default: Date.now,
+        index:true,
+    }
+
+})
+
+// Field-level `index: true` is defined for `userId`, `action`, and `timestamp` above.
+// Removed schema.index calls to avoid duplicate index definitions.
+
+export default mongoose.model("AuditLog", AuditLogSchema);

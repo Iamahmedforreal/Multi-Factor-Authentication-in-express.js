@@ -4,6 +4,9 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
+        lowercase: true,
+        trim: true,
+        index: true,
     },
     password: {
         type: String,
@@ -20,9 +23,11 @@ const userSchema = new mongoose.Schema({
     isemailVerified: {
         type: Boolean,
         default: false,
+        index: true,
     },
     resetPasswordToken: {
         type: String,
+        index: true,
     },
     resetPasswordTokenExpires: {
         type: Date,
@@ -32,19 +37,28 @@ const userSchema = new mongoose.Schema({
     },
     emailVerificationTokenExpires: {
         type: Date,
+        index: true,
     },
+    lastLogin:{
+        type: Date,      
+    },
+
 
     createdAt: {
         type: Date,
         default: Date.now,
+        index: true,
     },
 
     updatedAt: {
         type: Date,
         default: Date.now,
+        index: true,
     }
 });
 
+// Note: field-level `index: true` is already set on several fields above.
+// Removed redundant schema-level index to prevent duplicate-index warnings.
 const User = mongoose.model("User", userSchema);
 
 export default User;

@@ -29,7 +29,7 @@ const LoginAttemptSchema = new mongoose.Schema({
 
 });
 
-LoginAttemptSchema.index({email: 1}, {timestamp: -1});
-LoginAttemptSchema.index({ip: 1}, {timestamp: -1});
+// Field-level `index: true` is defined for `email`, `ip`, and `timestamp` above.
+// Removed schema.index calls to avoid duplicate index definitions.
 
 export default mongoose.model("LoginAttempt", LoginAttemptSchema);
