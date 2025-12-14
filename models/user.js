@@ -57,8 +57,7 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// Note: field-level `index: true` is already set on several fields above.
-// Removed redundant schema-level index to prevent duplicate-index warnings.
+
 const User = mongoose.model("User", userSchema);
 
 export default User;

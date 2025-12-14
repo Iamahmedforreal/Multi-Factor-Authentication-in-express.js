@@ -8,3 +8,7 @@ import {z} from "zod";
     .regex(/[0-9]/, "Password must contain at least one number")
     .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Password must contain at least one specil character")
 });
+export const loginSchema = z.object({
+    email: z.string().email("Invalid email format").trim(),
+    password: z.string().min(1, "Password is required")
+});

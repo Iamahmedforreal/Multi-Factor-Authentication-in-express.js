@@ -38,7 +38,6 @@ const AuditLogSchema = new mongoose.Schema({
 
 })
 
-// Field-level `index: true` is defined for `userId`, `action`, and `timestamp` above.
-// Removed schema.index calls to avoid duplicate index definitions.
+
 
 export default mongoose.model("AuditLog", AuditLogSchema);
