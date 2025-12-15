@@ -11,8 +11,10 @@ import { z } from "zod";
 import { registerSchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
-import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction } from "../utils/helper.js";
+import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout } from "../utils/helper.js";
 import AuditLog from "../models/AuditLog.js";
+import loginAttempt from "../models/loginAttempt.js";
+import { create } from "domain";
 
 
 
@@ -21,39 +23,42 @@ const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
 const MAX_LOGIN_ATTEMPT = 5;
 const LOCK_OUT_DURATION = 15 * 60 * 1000;
 const MAX_ACTIVE_SESSION = 5;
+const REFRESH_TOKEN_EXPIRY = 7;
 
 
+//register controller 
 export const register = async (req, res) => {
     try {
         const data = registerSchema.parse(req.body);
         const {email , password} = data;
 
-        const user = await User.findOne({email:email.toLowerCase()});
-        if (user){
+        const user = await User.findOne({email:email.toLocaleUpperCase()});
+        if(user){
             return res.status(400).json({massage:"user already exist"});
         }
 
-        const hashedPassword = await bcrypt.hash(password, 12);
+        const hashpassword = await bcrypt.hash(password, 12);
         const token = crypto.randomBytes(32).toString("hex");
-        const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+        const hashToken = crypto.createHash("sha256").update(token).digest("hex");
 
         const newUser = new User({
-            email: email.toLowerCase(),
-            password: hashedPassword,
-            emailVerificationToken: hashedToken,
+            email: email.toLocaleUpperCase(),
+            password: hashpassword,
+            emailVerificationToken: hashToken,
             emailVerificationTokenExpires: Date.now() + EMAIL_VERIFICATION_EXPIRY,
-            TwoFactorSecret: "",
-            IsMfaActive: false
+            IsMfaActive:false,
+            twoFactorSecret:""
         });
 
         await newUser.save();
 
-        await AuditLogFunction(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
+        await AuditLog(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
 
-        sendEmailVerification(newUser.email, token);
-        
-      res.status(201).json({massage:"user registered successfully verify email"});
-
+        sendEmailVerification(newUser.email, token).catch((err) => {
+            console.log("Error sending email",err);
+        });;
+        res.status(200).json({massage:"user created successfully"});
+     
     } catch (err) {
         if (err == 'ZodError'){
             return  res.status(400).json({massage:"input not valid"});
@@ -66,48 +71,71 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
 
     try{
-    const user = req.user;
+        const user = req.user;
+        const ip = req ? (req.headers["x-forwarded-for"]?.split[','][0]?.trim() || req.ip ):null;
 
-    if(user.IsMfaActive == true ){
-        const temp = genarateTemporaryToken(user);
-        return res.status(200).json({
-            massage: "verify your user",
-            temp: temp
-    });    
-    }
-    const AccessToken = generateAccessToken(user)
-    const RefreshToken = generateRefreshToken(user)
-    
-    const EXPIRES_AT = 7;
-    const expirestion = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
-    const ip = req.headers["x-forwarded-for"] || req.ip;
-    const Userdevice = req.headers["user-agent"];
+        const lockedout = await checkAccountLogout(user.email , ip);
 
-    const TokenDoment = new RefreshTokenModel({
-        userId: user._id,
-        token: RefreshToken,
-        expiresAt: expirestion,
-        device: Userdevice,
-        ip_address:ip
-    })
+        if(lockedout.locked){
+            await recodLastLoginAttempt(user._id , ip , user.email , false);
+            return res.status(429).json({error:`Account temporarily locked. Try again in ${lockedout.minutesRemaining} minutes`});
+        }
 
-    await TokenDoment.save();
+        if(!user.emailVerified){
+            await recodLastLoginAttempt(user._id , ip , user.email , false);
+            return res.status.json({massage:"verify your email"});
+        }  
+        
+        await recodLastLoginAttempt(user._id , ip , user.email , true);
 
-    res.cookie("refreshToken", RefreshToken,{
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-    });
+      
+        const activeSession = await RefreshTokenModel.countDocuments({
+            userId: user._id,
+            expiresAt: { $gt: Date.now() }
+        });
 
-    return res.status(202).json({
-        massage:"user logged in ",
-        AccessToken: AccessToken,
-    })
+        if(activeSession >= MAX_ACTIVE_SESSION){
+            const oldSession = await RefreshTokenModel.findOne({userId: user._id})
+            .sort({expiresAt: 1});
+            if(oldSession){
+                await RefreshTokenModel.deleteOne({token: oldSession.token});
+            }
+        }
 
-    
-   
+        if(user.IsMfaActive){
+            const temp = genarateTemporaryToken(user);
+            return res.status(200).json({
+                massage:"verify with 2fa setup",
+                temp
+            });
+        }
+
+        const accesstoken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
+
+        await SaveRefreshToke(user._id , refreshToken);
+
+        res.cookie("refreshToken", refreshToken , 
+            {
+                httpOnly: false,
+                secure: false,
+                sameSite: "none",
+                maxAge: REFRESH_TOKEN_EXPIRY *  24 * 60 * 60 * 1000
+            }
+        )
+
+        res.status(200).json({
+            massage:"login successful",
+            accesstoken,
+            refreshToken
+        })
+           
     }catch(err){
-        console.log(err);
+        if(err == 'ZodError'){
+            return  res.status(400).json({massage:"input not valid"});
+        }
+        console.log("error:" ,err);
+        
     }
 };
 
@@ -277,15 +305,16 @@ export const refresh = async (req, res) => {
 
 export const verifyEmail = async (req, res) => {
   try {
-    const { token } = req.query;   
+    const { token } = req.query;
 
+    const hashToken = crypto.createHash("sha256").update(token).digest("hex");
+    
     const user = await User.findOne({
-      emailVerificationToken: token,
-      emailVerificationTokenExpires: { $gt: Date.now() }
-    });
-
+        emailVerificationToken: hashToken,
+        emailVerificationTokenExpires: { $gt: Date.now() }
+    })
     if (!user) {
-      return res.status(400).send("Invalid or expired token");
+      return res.status(400).json("Invalid or expired token");
     }
 
     user.isemailVerified = true;
@@ -294,7 +323,9 @@ export const verifyEmail = async (req, res) => {
 
     await user.save();
 
-    res.send("Email verified successfully");
+    res.status(200).json({massage:"email verified successfully"});
+    
+
   } catch (err) {
     console.log(err);
     res.status(500).send("Server error");

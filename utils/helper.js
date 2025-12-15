@@ -3,6 +3,9 @@ import AuditLog from "../models/AuditLog.js";
 import RefreshTokenModel from "../models/token.js";
 import loginAttempt from "../models/loginAttempt.js";
 
+const LOCK_OUT_DURATION = 15 * 60 * 1000;
+const MAX_LOGIN_ATTEMPT = 5;
+
 export const handleError = (res , err , StatusCode = 500) => {
 
     console.error("error:" , err);
@@ -33,7 +36,7 @@ export const recodLastLoginAttempt = async (UserId , ip  , email ,successfull ,)
     })
 }
 
-export  const AuditLogFunction = async (userId , action , req ,  ip , userAgent , metadata={}) => {
+export  const AuditLogFunction = async (userId , action , req , metadata={}) => {
     const ip_addrss = req ? (req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip):null;
     const device  = req ? req.headers["user-agent"] : null;
 
@@ -45,5 +48,30 @@ export  const AuditLogFunction = async (userId , action , req ,  ip , userAgent 
         metadata,
         timestamp: new Date()
     })
+}
+export const checkAccountLogout = async (email , ip) => {
+ 
+//we checking email or ip and if its in last LOCK_COUNT_ATTEMPT
+ const recentLoginAttempts = await loginAttempt.find({
+    $or:[{email} , {ip}],
+    timestamp: {gte: new Date(Date.now() - LOCK_OUT_DURATION)}
+ })
+//filtering by failed login attempts
+ const failedLoginAttempts  = recentLoginAttempts.filter(attempt => !attempt.successfull.lenght);
+//check if those login attemps > max login we allow
+if(failedLoginAttempts.length >= MAX_LOGIN_ATTEMPT){
+    //sort for latest attampt
+    const recentAttempts = recentLoginAttempts.sort((a , b)=> b.timestamp - a.timestamp)[0];
+    //calculate time remaining
+    const timeRemaining = Math.ceil((LOCK_OUT_DURATION - (Date.now() - recentAttempts.timestamp)) / 60000);
     
+    return {
+        locked:true,
+        minutesRemaining:timeRemaining
+    }
+}
+
+return{
+    locked:false,   
+}   
 }
