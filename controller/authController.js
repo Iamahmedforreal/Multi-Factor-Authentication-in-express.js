@@ -15,6 +15,7 @@ import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunctio
 import AuditLog from "../models/AuditLog.js";
 import loginAttempt from "../models/loginAttempt.js";
 import { create } from "domain";
+import { error, timeStamp } from "console";
 
 
 
@@ -72,64 +73,64 @@ export const login = async (req, res) => {
 
     try{
         const user = req.user;
-        const ip = req ? (req.headers["x-forwarded-for"]?.split[','][0]?.trim() || req.ip ):null;
+        const ip = req? (req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip):null;
 
-        const lockedout = await checkAccountLogout(user.email , ip);
+        const lockedOut = await checkAccountLogout(user.email , ip);
 
-        if(lockedout.locked){
+        if(lockedOut.locked){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
-            return res.status(429).json({error:`Account temporarily locked. Try again in ${lockedout.minutesRemaining} minutes`});
+           return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
+        }
+        if(!user.isemailVerified){
+            await recodLastLoginAttempt(user._id , ip , user.email , false);
+            return res.status(400).json({massage:"email not verified"});
         }
 
-        if(!user.emailVerified){
-            await recodLastLoginAttempt(user._id , ip , user.email , false);
-            return res.status.json({massage:"verify your email"});
-        }  
-        
         await recodLastLoginAttempt(user._id , ip , user.email , true);
 
-      
+
         const activeSession = await RefreshTokenModel.countDocuments({
             userId: user._id,
             expiresAt: { $gt: Date.now() }
+        
         });
-
-        if(activeSession >= MAX_ACTIVE_SESSION){
-            const oldSession = await RefreshTokenModel.findOne({userId: user._id})
-            .sort({expiresAt: 1});
+        if(activeSession > MAX_ACTIVE_SESSION){
+            const oldSession = await RefreshTokenModel.findOne({userId:user._id})
+            .sort({created: 1})
             if(oldSession){
-                await RefreshTokenModel.deleteOne({token: oldSession.token});
+                await RefreshTokenModel.deleteOne({_id:oldSession._id});
             }
         }
 
         if(user.IsMfaActive){
-            const temp = genarateTemporaryToken(user);
-            return res.status(200).json({
-                massage:"verify with 2fa setup",
-                temp
-            });
+            const temToken = genarateTemporaryToken(user);
+            return res.status.json(
+                {massage:"verify your 2fa setup"},
+                 temToken);
+            
         }
 
-        const accesstoken = generateAccessToken(user);
+        const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
 
         await SaveRefreshToke(user._id , refreshToken);
 
-        res.cookie("refreshToken", refreshToken , 
-            {
-                httpOnly: false,
-                secure: false,
-                sameSite: "none",
-                maxAge: REFRESH_TOKEN_EXPIRY *  24 * 60 * 60 * 1000
-            }
-        )
+        res.cookie("refreshtoke" , refreshToken , {
+            httpOnly: false,
+            secure: false,
+            sameSite: "none",
+            maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
+        })
 
         res.status(200).json({
             massage:"login successful",
-            accesstoken,
-            refreshToken
+            accessToken
         })
-           
+        
+            
+
+
+      
     }catch(err){
         if(err == 'ZodError'){
             return  res.status(400).json({massage:"input not valid"});
