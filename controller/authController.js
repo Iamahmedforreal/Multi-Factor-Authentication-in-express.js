@@ -81,7 +81,7 @@ export const login = async (req, res) => {
             await recodLastLoginAttempt(user._id , ip , user.email , false);
            return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
         }
-        if(!user.isemailVerified){
+        if(!user.emailVerified){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
             return res.status(400).json({massage:"email not verified"});
         }
@@ -113,7 +113,7 @@ export const login = async (req, res) => {
         const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
 
-        await SaveRefreshToke(user._id , refreshToken);
+        await SaveRefreshToke(user._id , refreshToken , req);
 
         res.cookie("refreshtoke" , refreshToken , {
             httpOnly: false,
@@ -318,7 +318,7 @@ export const verifyEmail = async (req, res) => {
       return res.status(400).json("Invalid or expired token");
     }
 
-    user.isemailVerified = true;
+    user.emailVerified = true;
     user.emailVerificationToken = undefined;
     user.emailVerificationTokenExpires = undefined;
 

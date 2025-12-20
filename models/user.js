@@ -6,28 +6,30 @@ const userSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
         trim: true,
-        index: true,
+        unique: true,
+        
     },
     password: {
         type: String,
         required: true,
     },
 
-    IsMfaActive: {
+    MfaActive: {
         type: Boolean,
         default: false,
     },
     TwoFactorSecret: {
         type: String,
+
     },
-    isemailVerified: {
+    emailVerified: {
         type: Boolean,
         default: false,
-        index: true,
+        
     },
     resetPasswordToken: {
         type: String,
-        index: true,
+        
     },
     resetPasswordTokenExpires: {
         type: Date,
@@ -37,7 +39,7 @@ const userSchema = new mongoose.Schema({
     },
     emailVerificationTokenExpires: {
         type: Date,
-        index: true,
+
     },
     lastLogin:{
         type: Date,      
@@ -47,15 +49,16 @@ const userSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now,
-        index: true,
+       
     },
 
     updatedAt: {
         type: Date,
         default: Date.now,
-        index: true,
     }
 });
+
+userSchema.index({ email: 1 , isemailVerified:1});
 
 
 const User = mongoose.model("User", userSchema);

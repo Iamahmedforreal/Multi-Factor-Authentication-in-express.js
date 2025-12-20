@@ -12,7 +12,7 @@ export const handleError = (res , err , StatusCode = 500) => {
     return res.status(StatusCode).json({massage: "An error occurred. Please try again later."});
 }
 
-export const SaveRefreshToke = async (userId , token) => {
+export const SaveRefreshToke = async (userId , token , req) => {
     const EXPIRES_AT = 7;
     const expiresAt = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
     const ip = req.headers["x-forwarded-for"] || req.ip;
@@ -26,7 +26,7 @@ export const SaveRefreshToke = async (userId , token) => {
         ip
     })    
 }
-export const recodLastLoginAttempt = async (UserId , ip  , email ,successfull ,) =>{
+export const recodLastLoginAttempt = async (UserId , ip  , email ,successfull) =>{
     await loginAttempt.create({
         userId: UserId,
         email: email.toLowerCase(),
@@ -54,7 +54,7 @@ export const checkAccountLogout = async (email , ip) => {
 //we checking email or ip and if its in last LOCK_COUNT_ATTEMPT
  const recentLoginAttempts = await loginAttempt.find({
     $or:[{email} , {ip}],
-    timestamp: {gte: new Date(Date.now() - LOCK_OUT_DURATION)}
+    timestamp: {$gte: new Date(Date.now() - LOCK_OUT_DURATION)}
  })
 //filtering by failed login attempts
  const failedLoginAttempts  = recentLoginAttempts.filter(attempt => !attempt.successfull.lenght);

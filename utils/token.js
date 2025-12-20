@@ -1,46 +1,47 @@
 import jwt from "jsonwebtoken";
 
-const generateAccessToken = (user) => {
-    const playload ={
-        UserId:user._id.toString(),
-        email:user.email,
-        IsMfaActive:user.IsMfaActive,
-        isemailVerified:user.isemailVerified,
+export const generateAccessToken = (user) => {
+    const payload = {
+        id: user._id,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        MfaActive: user.MfaActive,
+        type: "access-token"
     }
-    return jwt.sign(playload , process.env.JWT_SECRET,{
-        expiresIn: process.env.JWT_EXPIRY,
-        issuer:"authentication.com",
-        audience:"user.com"
-    }
-     
+
+    return jwt.sign(payload, process.env.JWT_SECRET,
+        {
+            expiresIn: process.env.JWT_EXPIRE,
+            issuer:'authentication-service',
+            audience:'api-access'
+        }
     )
 }
 
-const generateRefreshToken = (user) =>{
+export const generateRefreshToken = (user) => {
     const playload = {
-        UserId:user._id.toString(),
-        tyoe:"refresh",
-       
+        id: user._id,
+        type: "refresh-token"        
     }
-    return jwt.sign(playload , process.env.JWT_REFRESH_SECRET,{
-        expiresIn: process.env.JWT_REFRESH_EXPIRY || "7d",
-        issuer:"authentication.com",
-        audience:"user.com"
+
+    return jwt.sign(playload, process.env.JWT_REFRESH_SECRET ,{
+        expiresIn: process.env.JWT_REFRESH_EXPIRE,
+        issuer:'authentication-service',
+        audience:'refresh-token'
+    })
+}
+
+export const genarateTemporaryToken = (user) => {
+    const playload = {
+        userId: user._id.toString(),
+        type: "maf-pending",
+        requiredmfa: true
+
     }
-    )
-
+    return jwt.sign(playload, process.env.JWT_TEMPOROY_EXPIRES ,{
+        expiresIn: process.env.JWT_TEMPOROY_EXPIRES_IN,
+        issuer:'authentication-service',
+        audience:'mfa-verification'
+    })
 }
-const genarateTemporaryToken = (user) => {
-    return jwt.sign(
-        {id: user._id},
-        process.env.JWT_TEMPOROY,
-        {expiresIn: "10m"}
-    )
-}
-
-export {
-    generateAccessToken,
-    generateRefreshToken,
-    genarateTemporaryToken
-
-}
+    

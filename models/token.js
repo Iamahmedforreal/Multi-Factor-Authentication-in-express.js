@@ -7,7 +7,8 @@ const RefreshTokenSchema  = new mongoose.Schema({
         type: mongoose.Types.ObjectId,
         required: true,
         ref: "User",    
-        index: true,
+        unique: true,
+        
     },
 
     token:{
@@ -20,7 +21,6 @@ const RefreshTokenSchema  = new mongoose.Schema({
     expiresAt:{
         type: Date,
         required: true,
-        index: true,
     },
     device:{
         type: String,
@@ -33,14 +33,13 @@ const RefreshTokenSchema  = new mongoose.Schema({
     createdAt:{
         type: Date,
         default: Date.now,
-        index: true,
     }
 
 
 })
 
-RefreshTokenModel.index({userId:1} , {expiresAt:-1});
-RefreshTokenModel.index({userId:1},{createdAt:-1});
+RefreshTokenSchema.index({userId:1 , expiresAt:-1});
+RefreshTokenSchema.index({userId:1 ,createdAt:-1});
 
 const RefreshTokenModel = mongoose.model("RefreshToken", RefreshTokenSchema);
 
