@@ -115,7 +115,7 @@ export const login = async (req, res) => {
 
         await SaveRefreshToke(user._id , refreshToken , req);
 
-        res.cookie("refreshtoke" , refreshToken , {
+        res.cookie("refreshtoken" , refreshToken , {
             httpOnly: false,
             secure: false,
             sameSite: "none",
@@ -127,9 +127,6 @@ export const login = async (req, res) => {
             accessToken
         })
         
-            
-
-
       
     }catch(err){
         if(err == 'ZodError'){
@@ -143,29 +140,34 @@ export const login = async (req, res) => {
 
 //logout router for revoking and deleting refresh from db
 export const logout = async (req, res) => {
+   const refreshToken = req.cookies.refreshtoken;
+   if(!refreshToken) {
+    return res.status(400).json({massage:"refresh token not found"});
+   }
+
+   try{
+    const tokenDoc = await RefreshTokenModel.findOne({token:refreshToken});
+    if(!tokenDoc){
+        return res.status(401).json({massage:"invalid refresh token"});
     
-   const refreshToken = req.cookies.refreshToken;
-   if(!refreshToken) return res.sendStatus(204);
-    try{
+         }
 
+    await AuditLog(tokenDoc.userId , "LOGOUT" , req);
+
+    await RefreshTokenModel.deleteOne({token:refreshToken});
+
+    res.clearCookie("refreshtoken" , {
+        httpOnly: false,
+        secure: false,
+        sameSite: "none",
+    });
+    return res.status(200).json({massage:"logged out successfully"});
     
-    const result = await RefreshTokenModel.deleteOne({token: refreshToken });
 
-    if(result.deletedCount === 0){
-        console.log("Logout: Token not found in DB, proceeding to clear cookie")
-    }
-
-    res.clearCookie("refreshToken" ,
-        {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-        }
-    );
-    res.sendStatus(204);
-    }catch(err){
-        console.log(err);
-    }   
+   }catch(err){
+    return handleError(res , err);
+   }
+   
 };
 //setup router
 export const mfa = async (req, res) => {
