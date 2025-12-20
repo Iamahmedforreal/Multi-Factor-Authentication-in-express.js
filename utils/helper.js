@@ -23,7 +23,7 @@ export const SaveRefreshToke = async (userId , token , req) => {
         token,
         expiresAt,
         device,
-        ip
+        ip_address: ip
     })    
 }
 export const recodLastLoginAttempt = async (UserId , ip  , email ,successfull) =>{

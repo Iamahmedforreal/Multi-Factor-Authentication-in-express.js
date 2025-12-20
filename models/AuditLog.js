@@ -16,7 +16,7 @@ const AuditLogSchema = new mongoose.Schema({
             'MFA_VERIFY_SUCCESS', 'MFA_VERIFY_FAILED',
             'EMAIL_VERIFIED', 'PASSWORD_RESET_REQUESTED',
             'PASSWORD_RESET_COMPLETED', 'PASSWORD_CHANGED',
-            'PASSWORD_CHANGE_FAILED'
+            'PASSWORD_CHANGE_FAILED','LOGIN_MFA_VERIFIED'
         ],
 
         index:true,
@@ -38,6 +38,8 @@ const AuditLogSchema = new mongoose.Schema({
 
 })
 
+AuditLogSchema.index({userId: 1 ,timestamp:-1});
+AuditLogSchema.index({action:1 ,timestamp: -1});
 
 
 export default mongoose.model("AuditLog", AuditLogSchema);

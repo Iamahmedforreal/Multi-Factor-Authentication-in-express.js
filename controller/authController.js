@@ -169,45 +169,65 @@ export const logout = async (req, res) => {
    }
    
 };
+export const logoutAllSessions = async (req, res) => {
+    try{
+        const user = req.user;
+
+      await RefreshTokenModel.deleteMany({userId:user._id});
+
+       res.clearCookie("refreshtoken" , {
+            httpOnly: false,
+            secure: false,
+            sameSite: "none",
+        });
+        await AuditLog(user._id , "LOGOUT_ALL_SESSIONS" , req);
+        res.status(201).json({massage:"logged out successfully"});
+
+    }catch(err){
+        return handleError(res , err);
+    }
+
+    
+
+
+}
+
 //setup router
 export const mfa = async (req, res) => {
+    try{
+        const user = req.user;
+        if(user.MfaActive && user.twoFactorSecret){
+            return res.status(400).json({massage:"mfa already setup reset it first"});
+        }
+
+        const secret = speakeasy.generateSecret({
+            issuer:"authentication-service",
+            name:`${user.email}`,
+            length:20
+        })
+
+        user.TwoFactorSecret = secret.base32;
+        await user.save();
+
+        const url = speakeasy.otpauthURL({
+            secret: secret.base32,
+            label: `${user.email}`,
+            issuer: "authenticaterApp",
+            encoding: "base32",
+        });
+
+        const qrImage = await qrCode.toDataURL(url);
+        await AuditLog(user._id , "MFA_SETUP_INITIATED" , req);
+        res.status(201).json({
+            qrImage,
+            massage:"mfa setup initiated"
+        });        
+
+    }catch(err){
+        return handleError(res , err);
+    }
   
  
- 
-try{
-    const user = req.user;
-    
-
-    const secret = speakeasy.generateSecret();
-    console.log(secret);
-
-    
-    user.TwoFactorSecret = secret.base32;
-    user.IsMfaActive = true;
-    await user.save();
-
-
-    const url = speakeasy.otpauthURL({
-        secret: secret.base32,
-        label: `${req.user.username}`,
-        issuer:"authentication.com",
-        encoding:"base32"
-    });
-
-    const qrimage = await qrCode.toDataURL(url);
-
-    const token = genarateTemporaryToken(user);
-
-    res.status(200).json({
-        secret: secret.base32,
-        qrimage,
-        token
-    })
-
-
-}catch(err){
-    console.log(err);
-}
 };
 export const resetmfa = async (req, res) => {
     try{
@@ -229,57 +249,84 @@ export const userStatus = async (req, res) => {
         IsMfaActive: user.IsMfaActive
     })
 };
-export const verify = async (req, res) => {
+export const verifySetup = async (req, res) => {
     try{
-    const {token} = req.body;
-    const user = req.user;
+        const {code} = req.body;
+        const user = req.user;
 
-    const verfied = speakeasy.totp.verify({
-        secret: user.TwoFactorSecret,
-        encoding: "base32",
-        token
-    });
+        if(!code){
+            return res.status(400).json({massage:"code is required"});
+        }
 
-    if(!verfied) {
-        return res.status(403).json({massage:"code not correct"} );
-    }
-    const AceessToken = generateAccessToken(user);
-    const newRefrshToken = generateRefreshToken(user);
+        if(!user.TwoFactorSecret){
+            return res.status(400).json({massage:"mfa not setup please set it up first"});
+        }
 
-    const EXPIRES_AT = 7;
-    const experation = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
-    const ip = req.headers["x-forwarded-for"] || req.ip;
-    const Userdevice = req.headers["user-agent"];
+        const verify = speakeasy.totp.verify({
+            secret: user.TwoFactorSecret,
+            encoding: "base32",
+            token: code,
+        })
 
-    const refreshTokenDocument = new RefreshTokenModel({
-        userId: user._id,
-        token: newRefrshToken,
-        expiresAt: experation,
-        device: Userdevice,
-        ip_address:ip
-    }
-    );    
+        if(!verify){
+            return res.status(400).json({massage:"invalid code"});
+        }
 
-    await refreshTokenDocument.save();
+        user.MfaActive = true;
+        await user.save();
 
-    res.cookie("refreshToken", newRefrshToken,{
-        httpOnly: false,
-        secure: false,
-        sameSite: "none",
-    });
-
-   
+        await AuditLog(user._id , "MFA_ENABLED" , req);
 
     res.status(200).json({
-        AceessToken: AceessToken
-
+        massage:"mfa verified successfully"
     })
 
 }catch(err){
-    console.log(err);
+    return handleError(res , err);
 }
 };
 
+export const verifyLogin = async (req, res) => {
+    try{
+        const user = req.user;
+        const {code} = req.body;
+
+        if(!user.MfaActive){
+            return res.status(400).json({massage:"mfa not setup please set it up first"});
+        }
+
+        const verify = speakeasy.totp.verify({
+            secret: user.TwoFactorSecret,
+            encoding: "base32",
+            token: code,
+        })
+
+        if(!verify){
+            return res.status(400).json({massage:"invalid code"});
+        }
+
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
+
+        //this only for testing cookie should httponly
+        res.cookie("refreshtoken" , refreshToken , {
+            httpOnly: false,
+            secure: false,
+            sameSite: "none",
+            
+        })
+
+        await SaveRefreshToke(user._id , refreshToken , req);
+        await AuditLog(user._id , "LOGIN_MFA_VERIFIED" , req);
+
+        res.status(200).json({
+            massage:"login successful",
+            accessToken
+        })
+    }catch(err){
+        return handleError(res , err);
+    }
+}
 //refresh token for new token
 export const refresh = async (req, res) => {
 
