@@ -7,22 +7,15 @@ import jwt from "jsonwebtoken";
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
 import crypto from "crypto";
-import { z } from "zod";
 import { registerSchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout } from "../utils/helper.js";
-import AuditLog from "../models/AuditLog.js";
-import loginAttempt from "../models/loginAttempt.js";
-import { create } from "domain";
-import { error, timeStamp } from "console";
 
 
 
-const RESET_PASSWORD_EXPIRY = 1000 * 60 * 15;
+
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
-const MAX_LOGIN_ATTEMPT = 5;
-const LOCK_OUT_DURATION = 15 * 60 * 1000;
 const MAX_ACTIVE_SESSION = 5;
 const REFRESH_TOKEN_EXPIRY = 7;
 
@@ -53,7 +46,7 @@ export const register = async (req, res) => {
 
         await newUser.save();
 
-        await AuditLog(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
+        await AuditLogFunction(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
 
         sendEmailVerification(newUser.email, token).catch((err) => {
             console.log("Error sending email",err);
@@ -121,6 +114,7 @@ export const login = async (req, res) => {
             sameSite: "none",
             maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
         })
+        await AuditLogFunction(user._id , ip , "LOGIN_SUCCESS" , req);
 
         res.status(200).json({
             massage:"login successful",
@@ -152,7 +146,7 @@ export const logout = async (req, res) => {
     
          }
 
-    await AuditLog(tokenDoc.userId , "LOGOUT" , req);
+    await AuditLogFunction(tokenDoc.userId , "LOGOUT" , req);
 
     await RefreshTokenModel.deleteOne({token:refreshToken});
 
@@ -180,7 +174,7 @@ export const logoutAllSessions = async (req, res) => {
             secure: false,
             sameSite: "none",
         });
-        await AuditLog(user._id , "LOGOUT_ALL_SESSIONS" , req);
+        await AuditLogFunction(user._id , "LOGOUT_ALL_SESSIONS" , req);
         res.status(201).json({massage:"logged out successfully"});
 
     }catch(err){
@@ -217,7 +211,8 @@ export const mfa = async (req, res) => {
         });
 
         const qrImage = await qrCode.toDataURL(url);
-        await AuditLog(user._id , "MFA_SETUP_INITIATED" , req);
+
+        await AuditLogFunction(user._id , "MFA_SETUP_INITIATED" , req);
         res.status(201).json({
             qrImage,
             massage:"mfa setup initiated"
@@ -275,7 +270,7 @@ export const verifySetup = async (req, res) => {
         user.MfaActive = true;
         await user.save();
 
-        await AuditLog(user._id , "MFA_ENABLED" , req);
+        await AuditLogFunction(user._id , "MFA_ENABLED" , req);
 
     res.status(200).json({
         massage:"mfa verified successfully"
@@ -317,7 +312,7 @@ export const verifyLogin = async (req, res) => {
         })
 
         await SaveRefreshToke(user._id , refreshToken , req);
-        await AuditLog(user._id , "LOGIN_MFA_VERIFIED" , req);
+        await AuditLogFunction(user._id , "LOGIN_MFA_VERIFIED" , req);
 
         res.status(200).json({
             massage:"login successful",
