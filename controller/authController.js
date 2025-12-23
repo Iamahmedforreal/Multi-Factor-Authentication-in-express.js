@@ -13,8 +13,6 @@ import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } f
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout } from "../utils/helper.js";
 
 
-
-
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
 const MAX_ACTIVE_SESSION = 5;
 const REFRESH_TOKEN_EXPIRY = 7;
@@ -63,7 +61,6 @@ export const register = async (req, res) => {
 };
 //authentication
 export const login = async (req, res) => {
-
     try{
         const user = req.user;
         const ip = req? (req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip):null;
@@ -186,7 +183,7 @@ export const logoutAllSessions = async (req, res) => {
 
 }
 
-//setup router
+//setup mfa router
 export const mfa = async (req, res) => {
     try{
         const user = req.user;
@@ -225,23 +222,41 @@ export const mfa = async (req, res) => {
  
 };
 export const resetmfa = async (req, res) => {
-    try{
-    const user = req.user;
-    user.twoFactorSecret = "";
-    user.IsMfaActive = false;
-    await user.save();
-    res.status(202).json("MFA reset successfully");
-    }catch(err){
-        console.log(err);
-    }
+      
+      const user = req.user;
+        
+        if (!user.MfaActive) {
+            return res.status(400).json({ error: "2FA is not enabled" });
+        }
 
-};
+        user.TwoFactorSecret = "";
+        user.MfaActive = false;
+        await user.save();
+
+        await RefreshTokenModel.deleteMany({ userId: user._id });
+
+        await AuditLogFunction(user._id, 'MFA_DISABLED', req);
+
+        res.status(200).json({ 
+            message: "2FA has been disabled. Please log in again." 
+        });
+
+    } 
+
+
 
 export const userStatus = async (req, res) => {
     const user = req.user
+    const activeSession = await RefreshTokenModel.countDocuments({
+        userId:user._id,
+        expiresAt: { $gt: Date.now() }
+    
+    });
     res.status(200).json({
-        username: user.username,
-        IsMfaActive: user.IsMfaActive
+        email: user.email,
+        emailVerified: user.emailVerified,
+        IsMfaActive: user.IsMfaActive,
+        activeSession
     })
 };
 export const verifySetup = async (req, res) => {
@@ -325,28 +340,53 @@ export const verifyLogin = async (req, res) => {
 //refresh token for new token
 export const refresh = async (req, res) => {
 
- 
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) return res.sendStatus(401);
+ try{
+    const refreshToken = req.cookies.refreshtoken;
+    if (!refreshToken){
+        return res.status(401).json({massage:"refresh token not found"});
+    }
 
-    
     const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken });
-    if (!tokenDoc) return res.sendStatus(403);
+    if (!tokenDoc){
+        return res.status(401).json({massage:"invalid refresh token"});
+    } 
+    if (tokenDoc.expiresAt < new Date()){
+        await RefreshTokenModel.deleteOne({ _id: tokenDoc._id });
+        return res.status(401).json({massage:"refresh token expired"});
+    }
 
+     jwt.verify(refreshToken , process.env.JWT_REFRESH_SECRET);
+ 
+    const user = await User.findById(tokenDoc.userId);
+
+    if (!user){
+        return res.status(401).json({massage:"user not found"});
+    }
     
-    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, async (err, decoded) => {
-        if (err) return res.sendStatus(403);
+    const newRefreshToken = generateRefreshToken(user);
+    await SaveRefreshToke(user._id , newRefreshToken , req);
+ 
 
-       
-        const user = await User.findById(tokenDoc.userId);
-        if (!user) return res.sendStatus(404);
+    await RefreshTokenModel.deleteOne({ _id: tokenDoc._id });
 
-        
-        const accessToken = generateAccessToken(user);
+    await AuditLogFunction(user._id , "TOKEN_REFRESHED" , req);
+    const accessToken = generateAccessToken(user);
 
-        res.json({ accessToken });
+     res.cookie("refreshtoken" , newRefreshToken , {
+        httpOnly: false,
+        secure: false,
+        sameSite: "none",
     });
-};
+   
+    res.status(200).json({
+        accessToken,
+        massage:"new token generated"
+    });
+
+}catch(err){
+    return handleError(res , err);
+}
+}
 
 export const verifyEmail = async (req, res) => {
   try {
@@ -382,7 +422,9 @@ export const forgotPassword = async (req, res) => {
 
     const user = await User.findOne({email});
 
-    if(!user) return res.status(400).json("user does not exist");
+    if(!user){
+         return res.status(400).json("user does not exist");
+    }
 
     const token = crypto.randomBytes(32).toString("hex");
     const hashToken = crypto.createHash("sha256").update(token).digest("hex");
@@ -393,6 +435,7 @@ export const forgotPassword = async (req, res) => {
     user.resetPasswordTokenExpires = Date.now() + 1000 * 60 * 15;
     await user.save();
 
+    await AuditLogFunction(user._id , "PASSWORD_RESET_REQUESTED" , req);
     await sendEmailResetPassword(user.email, token);
     res.status(200).json("password reset email sent");
     }catch(err){
@@ -404,17 +447,23 @@ export const forgotPassword = async (req, res) => {
 export const resetPassword = async (req, res) => {
     try{
      const {token} = req.query;
-     const {Newpassword} = req.body;
+     const {Newpassword , confirmPassword} = req.body;
+ 
 
+     if(Newpassword !== confirmPassword){
+        return res.status(400).json({massage:"password do not match"});
+     }
+
+     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
 
      const user = await User.findOne({
-        resetPasswordToken: token,
+        resetPasswordToken: hashedToken,
         resetPasswordTokenExpires: { $gt: Date.now() }
      });
 
      if(!user){
-        return res.status(400).json("Invalid or expired token");
+        return res.status(400).json({massage:"Invalid or expired token"});
 
      }
 
@@ -422,11 +471,44 @@ export const resetPassword = async (req, res) => {
      user.resetPasswordToken = undefined;
      user.resetPasswordTokenExpires = undefined;
      await user.save();
-     res.status(200).json("password reset successfully");
+
+     await AuditLogFunction(user._id , "PASSWORD_RESET_COMPLETED" , req);
+     res.status(200).json({massage:"password reset successfully"});
 
 
     }catch(err){
         console.log(err);
+    }
+}
+
+export const changePassword = async (req, res) => {
+    try{
+        const user = req.user;
+        const{currantPassword , newPassword , confirmPassword} = req.body;
+
+     
+
+        if(!currantPassword || !newPassword || !confirmPassword){
+            return res.status(400).json({massage:"all fields are required"});
+        }
+        if(newPassword !== confirmPassword){
+            res.status(400).json({massage:"password do not match"});
+        }
+        const validPassword = await bcrypt.compare(currantPassword , user.password);
+        if(!validPassword){
+            await AuditLogFunction(user._id , "PASSWORD_CHANGE_FAILED" , req);
+            return res.status(400).json({massage:"invalid password"});
+        }
+
+        user.password = await bcrypt.hash(newPassword , 12);
+        await user.save();
+
+        await AuditLogFunction(user._id , "PASSWORD_CHANGED" , req);
+
+        res.status(200).json({massage:"password changed successfully"});
+
+    }catch(err){
+        return handleError(res , err);
     }
 }
 

@@ -16,10 +16,10 @@ const AuditLogSchema = new mongoose.Schema({
             'MFA_VERIFY_SUCCESS', 'MFA_VERIFY_FAILED',
             'EMAIL_VERIFIED', 'PASSWORD_RESET_REQUESTED',
             'PASSWORD_RESET_COMPLETED', 'PASSWORD_CHANGED',
-            'PASSWORD_CHANGE_FAILED','LOGIN_MFA_VERIFIED'
+            'PASSWORD_CHANGE_FAILED','LOGIN_MFA_VERIFIED','TOKEN_REFRESHED'
         ],
-
         index:true,
+
     },
     ip:{
         type: String,
