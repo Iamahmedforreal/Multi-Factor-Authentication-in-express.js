@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
 import crypto from "crypto";
-import { registerSchema } from "../validators/registerValidation.js";
+import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout } from "../utils/helper.js";
@@ -62,7 +62,7 @@ export const register = async (req, res) => {
 //authentication
 export const login = async (req, res) => {
     try{
-        const user = req.user;
+        const user = loginSchema.parse(req.user);
         const ip = req? (req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip):null;
 
         const lockedOut = await checkAccountLogout(user.email , ip);
@@ -261,7 +261,7 @@ export const userStatus = async (req, res) => {
 };
 export const verifySetup = async (req, res) => {
     try{
-        const {code} = req.body;
+        const {code} = mfaVerifySchema.parse(req.body);
         const user = req.user;
 
         if(!code){
@@ -298,7 +298,7 @@ export const verifySetup = async (req, res) => {
 
 export const verifyLogin = async (req, res) => {
     try{
-        const user = req.user;
+        const user = mfaVerifySchema.parse(req.user);
         const {code} = req.body;
 
         if(!user.MfaActive){
