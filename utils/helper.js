@@ -15,8 +15,8 @@ export const handleError = (res , err , StatusCode = 500) => {
 export const SaveRefreshToke = async (userId , token , req) => {
     const EXPIRES_AT = 7;
     const expiresAt = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
-    const ip = req.headers["x-forwarded-for"] || req.ip;
-    const device = req.headers["user-agent"];
+    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const device = req?.headers?.['user-agent'] || null;
 
     await RefreshTokenModel.create({
         userId,
@@ -36,14 +36,14 @@ export const recodLastLoginAttempt = async (UserId , ip  , email ,successfull) =
     })
 }
 
-export  const AuditLogFunction = async (userId , action , req , metadata={}) => {
-    const ip_addrss = req ? (req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip):null;
-    const device  = req ? req.headers["user-agent"] : null;
+export  const AuditLogFunction = async (userId , action , req ,  metadata={}) => {
+    const ip_address = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const device  = req?.headers?.['user-agent'] || null;
 
     await AuditLog.create({
         userId,
         action,
-        ip: ip_addrss,
+        ip: ip_address,
         userAgent : device,
         metadata,
         timestamp: new Date()
@@ -57,7 +57,7 @@ export const checkAccountLogout = async (email , ip) => {
     timestamp: {$gte: new Date(Date.now() - LOCK_OUT_DURATION)}
  })
 //filtering by failed login attempts
- const failedLoginAttempts  = recentLoginAttempts.filter(attempt => !attempt.successfull.lenght);
+ const failedLoginAttempts  = recentLoginAttempts.filter(attempt => !attempt.successfull);
 //check if those login attemps > max login we allow
 if(failedLoginAttempts.length >= MAX_LOGIN_ATTEMPT){
     //sort for latest attampt
@@ -74,4 +74,7 @@ if(failedLoginAttempts.length >= MAX_LOGIN_ATTEMPT){
 return{
     locked:false,   
 }   
+}
+export const generateLoginkey = async(ip , email , action) => {
+    return`${action}:${ip}:${email}`
 }

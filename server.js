@@ -5,7 +5,6 @@ import passport from "passport";
 import cookieParser from "cookie-parser";
 import dbConnection from "./config/dbConnection.js";
 import AuthRoutes from "./route/Authroutes.js";
-import globalratelimiter from "./middleware/ratelimiter.js"
 import MongoSanitize from "express-mongo-sanitize";
 import "./config/passportConfig.js";
 
@@ -36,7 +35,7 @@ app.use((req, res, next) => {
 });
 app.use(passport.initialize()); 
 app.use(cookieParser());
-app.use(globalratelimiter);
+
 
 // Routes
 app.use("/api/auth",  AuthRoutes);

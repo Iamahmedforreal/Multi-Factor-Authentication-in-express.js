@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
 import crypto from "crypto";
-import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema } from "../validators/registerValidation.js";
+import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema , emailSchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout } from "../utils/helper.js";
@@ -38,8 +38,8 @@ export const register = async (req, res) => {
             password: hashpassword,
             emailVerificationToken: hashToken,
             emailVerificationTokenExpires: Date.now() + EMAIL_VERIFICATION_EXPIRY,
-            IsMfaActive:false,
-            twoFactorSecret:""
+            MfaActive:false,
+            TwoFactorSecret:""
         });
 
         await newUser.save();
@@ -62,14 +62,14 @@ export const register = async (req, res) => {
 //authentication
 export const login = async (req, res) => {
     try{
-        const user = loginSchema.parse(req.user);
-        const ip = req? (req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip):null;
+        const user = req.user;
+        const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
 
         const lockedOut = await checkAccountLogout(user.email , ip);
 
         if(lockedOut.locked){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
-           return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
+          return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
         }
         if(!user.emailVerified){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
@@ -92,7 +92,7 @@ export const login = async (req, res) => {
             }
         }
 
-        if(user.IsMfaActive){
+        if(user.MfaActive){
             const temToken = genarateTemporaryToken(user);
             return res.status.json(
                 {massage:"verify your 2fa setup"},
@@ -111,7 +111,7 @@ export const login = async (req, res) => {
             sameSite: "none",
             maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
         })
-        await AuditLogFunction(user._id , ip , "LOGIN_SUCCESS" , req);
+        await AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req ,);
 
         res.status(200).json({
             massage:"login successful",
@@ -187,7 +187,7 @@ export const logoutAllSessions = async (req, res) => {
 export const mfa = async (req, res) => {
     try{
         const user = req.user;
-        if(user.MfaActive && user.twoFactorSecret){
+        if(user.MfaActive && user.TwoFactorSecret){
             return res.status(400).json({massage:"mfa already setup reset it first"});
         }
 
@@ -255,7 +255,7 @@ export const userStatus = async (req, res) => {
     res.status(200).json({
         email: user.email,
         emailVerified: user.emailVerified,
-        IsMfaActive: user.IsMfaActive,
+        MfaActive: user.MfaActive,
         activeSession
     })
 };
@@ -416,6 +416,39 @@ export const verifyEmail = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+export const resendEmailverify = async (req, res) => {
+    try{
+        const {email} = emailSchema.parse(req.body);
+
+        const user = await User.findOne({email});
+
+        if(!user){
+            return res.status(400).json({massage:"user not found"});
+        }
+
+        if(user.emailVerified){
+            return res.status(400).json({massage:"email already verified"});
+        }
+
+        const token = crypto.randomBytes(32).toString("hex");
+        const hashedToken =crypto.createHash("sha256").update(token).digest("hex");
+
+        user.emailVerificationToken = hashedToken;
+        user.emailVerificationTokenExpires = Date.now() + EMAIL_VERIFICATION_EXPIRY;
+        await user.save();
+
+        await sendEmailVerification(user.email , token).catch((err) => {
+            console.log("Error sending email",err);
+        });
+
+
+        res.status(200).json({massage:"email sent successfully"});
+
+    }catch(err){
+        return handleError(res , err);
+
+    }
+}
 export const forgotPassword = async (req, res) => {
     try{
     const {email} = req.body;
