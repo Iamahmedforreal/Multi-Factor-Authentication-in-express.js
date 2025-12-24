@@ -2,7 +2,7 @@ import express from "express";
 import passport from "passport";
 const router = express.Router();
 
-import {loginRatelimit} from "../middleware/ratelimiter.js";
+import {loginRatelimit , refreshratelimit} from "../middleware/ratelimiter.js"
 
 import { 
     login,
@@ -30,7 +30,7 @@ router.post("/logout", logout);
 router.get("/verify-email" , verifyEmail);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password" , resetPassword);
-router.get("/refresh" , refresh);
+router.get("/refresh" ,refreshratelimit , refresh);
 router.post("/login" ,loginRatelimit,passport.authenticate('local' , {session: false}), login);
 router.post("/resend-email-verify" , resendEmailverify);
 

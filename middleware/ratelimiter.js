@@ -1,5 +1,6 @@
 import bucketSchema from "../models/ratelimit.js";
 import { buildKey } from "../utils/helper.js";
+import RefreshTokenModel from "../models/token.js";
 
 
 
@@ -16,31 +17,66 @@ export const loginRatelimit = async (req , res , next) => {
     }
     const key = await buildKey("login" , ip , email);
 
-    const bucket = await bucketSchema.findOne({key:key});
-
-    if(!bucket || bucket.expiredAt.getTime() < now.getTime()){
-        await bucketSchema.findOneAndUpdate(
-            {key:key},
-            {
-                key:key,
-                count:1,
-                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
-            }
-            ,
-            {upsert:true}
-        )
-        return next();
+    const bucket = await bucketSchema.findOneAndUpdate({
         
-    }
-    if(bucket.count >= MAX_ATTEMP){
-        return res.status(429).json({error:"too many login attempts try again later"})
-    }
-    
-    await bucketSchema.updateOne(
-        {key:key},
+            key:key,
+            expiredAt:{$gte:now}
+        },
         {
             $inc:{count:1},
-        }
+            $setOnInsert:{
+                key:key,
+                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
+            
+            },
+        },
+            {upsert:true , new:true}        
     )
-    return next();
+    if(bucket.count >= MAX_ATTEMP){
+        return res.status(429).json({
+            error:"too many login attempts try again later",
+            retryAfter: bucket.expiredAt
+        })
+    }
+    next();
+}
+
+export const refreshratelimit = async (req , res , next) => {
+    const refreshToken = req.cookies.refreshtoken;
+    const now = new Date();
+    if(!refreshToken){
+        return res.status(403).json({error:"refresh token not found"});
+    }
+    const token = await RefreshTokenModel.findOne({token:refreshToken});
+    if(!token){
+        return res.status(403).json({error:"invalid refresh token"});
+    }
+    const key = `${"refresh"}:${token.userId}`
+   
+    const bucket = await bucketSchema.findOneAndUpdate(
+        {key:key,
+        expiredAt:{$gte:now}
+        },
+        {
+            $inc:{count:1},
+            $setOnInsert:{
+                key:key,
+                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
+            }
+        }
+        ,
+        {upsert:true , new:true}
+    )
+    if(bucket.count >= MAX_ATTEMP){
+        return res.status(429).json({
+            error:"too many refresh attempts try again later",
+            retryAfter: bucket.expiredAt
+        });
+    }
+    
+
+    next();
+
+    
+
 }
