@@ -476,33 +476,33 @@ No content
 
 ## Security Features
 
-### 🔐 Encryption & Hashing
+###  Encryption & Hashing
 - **bcrypt** for password hashing (salt rounds: 10)
 - **crypto** for secure token generation
 - **JWT** for stateless authentication
 
-### 🛡️ Injection Prevention
+###  Injection Prevention
 - MongoDB sanitization middleware (`express-mongo-sanitize`)
 - Zod schema validation for input data
 
-### ⏱️ Rate Limiting
+###  Rate Limiting
 - Global rate limiter on all routes
 - Dedicated brute-force limiter on `/login` endpoint
 
-### 🍪 Cookie Security
+###  Cookie Security
 - Refresh tokens stored in secure cookies
 - HttpOnly flag can be enabled for production
 
-### 📧 Email Verification
+###  Email Verification
 - Users must verify email before login
 - Tokens expire after 1 hour
 
-### 🔄 Token Rotation
+###  Token Rotation
 - Access tokens expire after 7 minutes
 - Refresh tokens enable long-lived sessions (7 days)
 - Refresh tokens tracked in database with device/IP info
 
-### 📱 2FA (TOTP)
+### 2FA (TOTP)
 - Time-based One-Time Password using speakeasy
 - QR code for easy authenticator app setup
 - 6-digit codes required for login verification
