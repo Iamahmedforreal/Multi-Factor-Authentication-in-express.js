@@ -135,8 +135,8 @@ The server will run on `http://localhost:7000` by default.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `MONGODB_URI` | MongoDB connection string | `mongodb://127.0.0.1:27017/mfa-auth` |
-| `PORT` | Server port | `7000` |
+| `MONGODB_URI` | MongoDB connection string | `mongodb_url` |
+| `PORT` | Server port | `your port` |
 | `JWT_SECRET` | Access token secret | `your_secret_key_123` |
 | `JWT_REFRESH_SECRET` | Refresh token secret | `your_refresh_secret_456` |
 | `JWT_TEMPORARY_SECRET` | Temporary token secret (for 2FA) | `your_temp_secret_789` |
