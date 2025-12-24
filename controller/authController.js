@@ -18,7 +18,7 @@ const MAX_ACTIVE_SESSION = 5;
 const REFRESH_TOKEN_EXPIRY = 7;
 
 
-//register controller 
+// Register: validate input, create a new user and send verification email
 export const register = async (req, res) => {
     try {
         const data = registerSchema.parse(req.body);
@@ -59,7 +59,7 @@ export const register = async (req, res) => {
         
     }
 };
-//authentication
+// Login: authenticate user (from Passport), check verification/2FA and issue tokens
 export const login = async (req, res) => {
     try{
         const user = req.user;
@@ -129,7 +129,7 @@ export const login = async (req, res) => {
 };
 
 
-//logout router for revoking and deleting refresh from db
+// Logout: revoke current refresh token and clear cookie
 export const logout = async (req, res) => {
    const refreshToken = req.cookies.refreshtoken;
    if(!refreshToken) {
@@ -160,6 +160,7 @@ export const logout = async (req, res) => {
    }
    
 };
+// Logout All Sessions: delete all refresh tokens for the user and clear cookie
 export const logoutAllSessions = async (req, res) => {
     try{
         const user = req.user;
@@ -183,7 +184,7 @@ export const logoutAllSessions = async (req, res) => {
 
 }
 
-//setup mfa router
+// MFA Setup: generate TOTP secret/QR and save secret to user
 export const mfa = async (req, res) => {
     try{
         const user = req.user;
@@ -221,6 +222,7 @@ export const mfa = async (req, res) => {
   
  
 };
+// Reset MFA: disable 2FA for the user and revoke sessions
 export const resetmfa = async (req, res) => {
       
       const user = req.user;
@@ -245,6 +247,7 @@ export const resetmfa = async (req, res) => {
 
 
 
+// User Status: return user email, verification and MFA status plus active sessions
 export const userStatus = async (req, res) => {
     const user = req.user
     const activeSession = await RefreshTokenModel.countDocuments({
@@ -259,6 +262,7 @@ export const userStatus = async (req, res) => {
         activeSession
     })
 };
+// Verify MFA Setup: verify TOTP during setup and enable MFA
 export const verifySetup = async (req, res) => {
     try{
         const {code} = mfaVerifySchema.parse(req.body);
@@ -296,6 +300,7 @@ export const verifySetup = async (req, res) => {
 }
 };
 
+// Verify MFA Login: verify TOTP during login and issue tokens
 export const verifyLogin = async (req, res) => {
     try{
         const user = mfaVerifySchema.parse(req.user);
@@ -337,7 +342,7 @@ export const verifyLogin = async (req, res) => {
         return handleError(res , err);
     }
 }
-//refresh token for new token
+// Refresh: exchange a valid refresh token (cookie) for a new access token
 export const refresh = async (req, res) => {
 
  try{
@@ -388,6 +393,7 @@ export const refresh = async (req, res) => {
 }
 }
 
+// Verify Email: validate verification token and mark user as verified
 export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
@@ -416,6 +422,7 @@ export const verifyEmail = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+// Resend Email Verification: generate a new token and email it to the user
 export const resendEmailverify = async (req, res) => {
     try{
         const {email} = emailSchema.parse(req.body);
@@ -449,6 +456,7 @@ export const resendEmailverify = async (req, res) => {
 
     }
 }
+// Forgot Password: generate password reset token and send reset email
 export const forgotPassword = async (req, res) => {
     try{
     const {email} = req.body;
@@ -477,6 +485,7 @@ export const forgotPassword = async (req, res) => {
     
 }
 
+// Reset Password: validate reset token and set new password
 export const resetPassword = async (req, res) => {
     try{
      const {token} = req.query;
@@ -514,6 +523,7 @@ export const resetPassword = async (req, res) => {
     }
 }
 
+// Change Password: authenticated endpoint to change current user's password
 export const changePassword = async (req, res) => {
     try{
         const user = req.user;

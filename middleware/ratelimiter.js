@@ -6,7 +6,7 @@ import RefreshTokenModel from "../models/token.js";
 
 const MAX_ATTEMP = 5;
 const MAX_WINDOW = 10;
-
+//login rate limit 
 export const loginRatelimit = async (req , res , next) => {
     const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
     const email = req.body.email;
@@ -20,19 +20,18 @@ export const loginRatelimit = async (req , res , next) => {
     const bucket = await bucketSchema.findOneAndUpdate({
         
             key:key,
-            expiredAt:{$gte:now}
+            expiredAt:{$gte:now}// we looking for bucket that is not expired
         },
         {
-            $inc:{count:1},
-            $setOnInsert:{
+            $inc:{count:1},//after that if its not expired we increament 1
+            $setOnInsert:{//if user first time or it expired make new bucket
                 key:key,
                 expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
-            
-            },
+            }
         },
-            {upsert:true , new:true}        
+            {upsert:true , new:true}        //this returns document after it increments it 
     )
-    if(bucket.count >= MAX_ATTEMP){
+    if(bucket.count > MAX_ATTEMP){ // check if the count if its more than limit block it 
         return res.status(429).json({
             error:"too many login attempts try again later",
             retryAfter: bucket.expiredAt
@@ -67,16 +66,124 @@ export const refreshratelimit = async (req , res , next) => {
         ,
         {upsert:true , new:true}
     )
-    if(bucket.count >= MAX_ATTEMP){
+    if(bucket.count > MAX_ATTEMP){
+        const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
         return res.status(429).json({
             error:"too many refresh attempts try again later",
+            retryAfter: minutesLeft
+        });
+    }
+    next();
+}
+// rate limit for reset-password  (when user submits email for reseting)
+export const forgetpasswordratelimit = async (req , res , next) => {
+    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const email = req.body.email;
+    const now = new Date();
+
+    if(!email){
+        return res.status(403).json({error:"email not found"});
+    }
+    const key = await buildKey("forgotpassword" , ip , email);
+    const bucket = await bucketSchema.findOneAndUpdate(
+        {
+            key:key,
+            expiredAt:{$gte:now}
+        
+        },
+        {
+            $inc:{count:1},
+            $setOnInsert:{
+                key:key,
+                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
+            }
+            },
+            {upsert:true , new:true}      
+    )
+
+    if(bucket.count > MAX_ATTEMP){
+        return res.status(429).json({
+            error:"too many forgot password attempts try again later",
             retryAfter: bucket.expiredAt
         });
     }
-    
+    next();           
+}
+
+// rate limit for reset-password confirmation (when user submits new password)
+export const resetPasswordConfirmRatelimit = async (req, res, next) => {
+    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const email = req.body?.email;
+    const now = new Date();
+
+    if (!email) {
+        return res.status(403).json({ error: "email not found" });
+    }
+
+    const key = await buildKey("resetpasswordconfirm", ip, email);
+
+    const bucket = await bucketSchema.findOneAndUpdate(
+        {
+            key: key,
+            expiredAt: { $gte: now }
+        },
+        {
+            $inc: { count: 1 },
+            $setOnInsert: {
+                key: key,
+                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
+            }
+        },
+        { upsert: true, new: true }
+    );
+
+    if (bucket.count > MAX_ATTEMP) {
+        const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
+        return res.status(429).json({
+            error: "too many reset-password attempts, try again later",
+            retryAfterMinutes: minutesLeft
+        });
+    }
 
     next();
+}
 
+// MFA verify rate limiter (applies to TOTP verify endpoints)
+export const mfaVerifyRatelimit = async (req, res, next) => {
     
+    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const userId = req?.user?._id?.toString() || req?.body?.userId || null;
+    const now = new Date();
 
+    if (!userId) {
+        // fallback: we use ip-only key if no userId available
+        return res.status(400).json({ error: "user id required for rate limiting" });
+    }
+
+    const key = `${"mfaverify"}:${userId}:${ip}`
+
+    const bucket = await bucketSchema.findOneAndUpdate(
+        {
+            key: key,
+            expiredAt: { $gte: now }
+        },
+        {
+            $inc: { count: 1 },
+            $setOnInsert: {
+                key: key,
+                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
+            }
+        },
+        { upsert: true, new: true }
+    );
+
+    if (bucket.count > MAX_ATTEMP) {
+        const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
+        return res.status(429).json({
+            error: "too many mfa verify attempts, try again later",
+            retryAfterMinutes: minutesLeft
+        });
+    }
+
+    next();
 }

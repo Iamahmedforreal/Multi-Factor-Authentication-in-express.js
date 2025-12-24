@@ -2,7 +2,8 @@ import express from "express";
 import passport from "passport";
 const router = express.Router();
 
-import {loginRatelimit , refreshratelimit} from "../middleware/ratelimiter.js"
+import {loginRatelimit , refreshratelimit, resetPasswordConfirmRatelimit , forgetpasswordratelimit} from "../middleware/ratelimiter.js"
+import {loginRatelimit , refreshratelimit, resetPasswordConfirmRatelimit , forgetpasswordratelimit, mfaVerifyRatelimit} from "../middleware/ratelimiter.js"
 
 import { 
     login,
@@ -28,8 +29,8 @@ import {
 router.post("/register",register);
 router.post("/logout", logout);
 router.get("/verify-email" , verifyEmail);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password" , resetPassword);
+router.post("/forgot-password",forgetpasswordratelimit ,forgotPassword);
+router.post("/reset-password" , resetPasswordConfirmRatelimit, resetPassword);
 router.get("/refresh" ,refreshratelimit , refresh);
 router.post("/login" ,loginRatelimit,passport.authenticate('local' , {session: false}), login);
 router.post("/resend-email-verify" , resendEmailverify);
@@ -38,7 +39,8 @@ router.post("/resend-email-verify" , resendEmailverify);
 router.get("/status", passport.authenticate('jwt', {session:false}), userStatus);
 router.post("/2fa/setup" , passport.authenticate('jwt', {session:false}), mfa);
 router.post("/2fa/login/verify" ,  passport.authenticate('temp-jwt', {session:false}), verifyLogin)
-router.post("/2fa/setup/verify"  ,  passport.authenticate('jwt', {session:false}), verifySetup)
+router.post("/2fa/login/verify" ,  passport.authenticate('temp-jwt', {session:false}), mfaVerifyRatelimit, verifyLogin)
+router.post("/2fa/setup/verify"  ,  passport.authenticate('jwt', {session:false}), mfaVerifyRatelimit, verifySetup)
 router.post("/2fa/reset", passport.authenticate('jwt',{session:false}) ,resetmfa);
 
 
