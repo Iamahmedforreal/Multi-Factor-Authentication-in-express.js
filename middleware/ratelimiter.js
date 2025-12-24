@@ -1,37 +1,46 @@
 import bucketSchema from "../models/ratelimit.js";
-import { generateLoginkey } from "../utils/helper.js";
-import { emailSchema } from "../validators/registerValidation.js";
+import { buildKey } from "../utils/helper.js";
+
+
 
 const MAX_ATTEMP = 5;
 const MAX_WINDOW = 10;
 
 export const loginRatelimit = async (req , res , next) => {
     const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
-    const { email } = emailSchema.parse(req.body || {});
+    const email = req.body.email;
+    const now = new Date();
 
     if(!email){
         return res.status(403).json({error:"email not found"});
     }
-    const key = await generateLoginkey(ip , email , "login");
+    const key = await buildKey("login" , ip , email);
 
-    const bucket = await bucketSchema.findOne({key});
-    if(!bucket){
-        const newBucket = await  bucketSchema.create({
-            key,
-            count:1,
-            expiredAt: new Date(Date.now() + MAX_WINDOW * 60 * 1000)
-        })
+    const bucket = await bucketSchema.findOne({key:key});
 
-        await newBucket.save();
+    if(!bucket || bucket.expiredAt.getTime() < now.getTime()){
+        await bucketSchema.findOneAndUpdate(
+            {key:key},
+            {
+                key:key,
+                count:1,
+                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
+            }
+            ,
+            {upsert:true}
+        )
         return next();
+        
     }
     if(bucket.count >= MAX_ATTEMP){
-        return res.status(429).json({
-            error:"Too many login attempts. Please try again later"
-        })
+        return res.status(429).json({error:"too many login attempts try again later"})
     }
-
-    bucket.count += 1;
-    await bucket.save();
-    next();    
+    
+    await bucketSchema.updateOne(
+        {key:key},
+        {
+            $inc:{count:1},
+        }
+    )
+    return next();
 }

@@ -75,6 +75,8 @@ return{
     locked:false,   
 }   
 }
-export const generateLoginkey = async(ip , email , action) => {
+export const buildKey = async(action , ip , email) => {
     return`${action}:${ip}:${email}`
 }
+
+
