@@ -1,5 +1,5 @@
 import bucketSchema from "../models/ratelimit.js";
-import { buildKey } from "../utils/helper.js";
+import { buildKey, AuditLogFunction } from "../utils/helper.js";
 import RefreshTokenModel from "../models/token.js";
 
 
@@ -29,9 +29,10 @@ export const loginRatelimit = async (req , res , next) => {
                 expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
             }
         },
-            {upsert:true , new:true}        //this returns document after it increments it 
+            {upsert:true , new:true}        //we  returns document after it increment (without it returns false meaning it will return the old count )
     )
     if(bucket.count > MAX_ATTEMP){ // check if the count if its more than limit block it 
+        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
         return res.status(429).json({
             error:"too many login attempts try again later",
             retryAfter: bucket.expiredAt
@@ -39,7 +40,7 @@ export const loginRatelimit = async (req , res , next) => {
     }
     next();
 }
-
+//rate limit for reset-password  (when user submits email for reseting)
 export const refreshratelimit = async (req , res , next) => {
     const refreshToken = req.cookies.refreshtoken;
     const now = new Date();
@@ -68,6 +69,7 @@ export const refreshratelimit = async (req , res , next) => {
     )
     if(bucket.count > MAX_ATTEMP){
         const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
+        await AuditLogFunction(token.userId || null, "RATE_LIMIT_BLOCKED", req, { key, bucketCount: bucket.count });
         return res.status(429).json({
             error:"too many refresh attempts try again later",
             retryAfter: minutesLeft
@@ -102,6 +104,7 @@ export const forgetpasswordratelimit = async (req , res , next) => {
     )
 
     if(bucket.count > MAX_ATTEMP){
+        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
         return res.status(429).json({
             error:"too many forgot password attempts try again later",
             retryAfter: bucket.expiredAt
@@ -139,6 +142,7 @@ export const resetPasswordConfirmRatelimit = async (req, res, next) => {
 
     if (bucket.count > MAX_ATTEMP) {
         const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
+        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
         return res.status(429).json({
             error: "too many reset-password attempts, try again later",
             retryAfterMinutes: minutesLeft
@@ -179,6 +183,7 @@ export const mfaVerifyRatelimit = async (req, res, next) => {
 
     if (bucket.count > MAX_ATTEMP) {
         const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
+        await AuditLogFunction(userId || null, "RATE_LIMIT_BLOCKED", req, { key, ip, bucketCount: bucket.count });
         return res.status(429).json({
             error: "too many mfa verify attempts, try again later",
             retryAfterMinutes: minutesLeft

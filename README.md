@@ -139,9 +139,22 @@ The server will run on `http://localhost:7000` by default.
 | `PORT` | Server port | `7000` |
 | `JWT_SECRET` | Access token secret | `your_secret_key_123` |
 | `JWT_REFRESH_SECRET` | Refresh token secret | `your_refresh_secret_456` |
-| `JWT_TEMPOROY` | Temporary token secret (for 2FA) | `your_temp_secret_789` |
+| `JWT_TEMPORARY_SECRET` | Temporary token secret (for 2FA) | `your_temp_secret_789` |
 | `EMAIL_USER` | Sender email address | `myapp@gmail.com` |
+
 | `EMAIL_PASS` | Email app password | `abcd efgh ijkl mnop` |
+
+### Rate limiting
+
+The project implements per-route rate limiting backed by a MongoDB "bucket" collection. Middleware lives in `middleware/ratelimiter.js` and uses an atomic `findOneAndUpdate` pattern to avoid race conditions when multiple requests arrive concurrently.
+
+- `loginRatelimit` — applied to `POST /login` (limits by IP + email).
+- `forgetpasswordratelimit` — applied to `POST /forgot-password` (limits password reset requests by IP + email).
+- `resetPasswordConfirmRatelimit` — applied to `POST /reset-password` (limits reset confirmations by IP + email).
+- `refreshratelimit` — applied to `GET /refresh` (limits refresh token usage).
+- `mfaVerifyRatelimit` — applied to MFA verification endpoints (`/2fa/login/verify`, `/2fa/setup/verify`) and uses userId + IP as the key.
+
+Each limiter returns HTTP `429` with `retryAfterMinutes` when the limit is exceeded. You can configure the limit window and count in `middleware/ratelimiter.js` via `MAX_ATTEMP` and `MAX_WINDOW`.
 
 ---
 
@@ -279,7 +292,7 @@ Authorization: Bearer {tempToken}
 **Success Response (200):**
 ```json
 {
-  "AceessToken": "eyJhbGc..."
+  "accessToken": "eyJhbGc..."
 }
 ```
 
@@ -339,7 +352,7 @@ Get a new access token using the refresh token from cookies.
 
 **Cookies Required:**
 ```
-refreshToken={token}
+refreshtoken={token}
 ```
 
 **Success Response (200):**
@@ -403,7 +416,7 @@ Revoke refresh token and clear session.
 
 **Cookies Required:**
 ```
-refreshToken={token}
+refreshtoken={token}
 ```
 
 **Success Response (204):**

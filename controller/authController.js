@@ -69,11 +69,13 @@ export const login = async (req, res) => {
 
         if(lockedOut.locked){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
-          return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
+                    await AuditLogFunction(user._id, "LOGIN_LOCKED", req, { minutesRemaining: lockedOut.minutesRemaining });
+                    return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
         }
         if(!user.emailVerified){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
-            return res.status(400).json({massage:"email not verified"});
+                        await AuditLogFunction(user._id, "LOGIN_EMAIL_NOT_VERIFIED", req);
+                        return res.status(400).json({massage:"email not verified"});
         }
 
         await recodLastLoginAttempt(user._id , ip , user.email , true);
@@ -94,9 +96,8 @@ export const login = async (req, res) => {
 
         if(user.MfaActive){
             const temToken = genarateTemporaryToken(user);
-            return res.status.json(
-                {massage:"verify your 2fa setup"},
-                 temToken);
+            await AuditLogFunction(user._id, "LOGIN_MFA_REQUIRED", req);
+            return res.status(200).json({ massage: "verify your 2fa setup", temToken });
             
         }
 
@@ -106,9 +107,9 @@ export const login = async (req, res) => {
         await SaveRefreshToke(user._id , refreshToken , req);
 
         res.cookie("refreshtoken" , refreshToken , {
-            httpOnly: false,
-            secure: false,
-            sameSite: "none",
+            httpOnly: true,
+            secure: true,
+            sameSite: "strict",
             maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
         })
         await AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req ,);
@@ -148,9 +149,9 @@ export const logout = async (req, res) => {
     await RefreshTokenModel.deleteOne({token:refreshToken});
 
     res.clearCookie("refreshtoken" , {
-        httpOnly: false,
-        secure: false,
-        sameSite: "none",
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
     });
     return res.status(200).json({massage:"logged out successfully"});
     
@@ -168,9 +169,9 @@ export const logoutAllSessions = async (req, res) => {
       await RefreshTokenModel.deleteMany({userId:user._id});
 
        res.clearCookie("refreshtoken" , {
-            httpOnly: false,
-            secure: false,
-            sameSite: "none",
+            httpOnly: true,
+            secure: true,
+            sameSite: "strict",
         });
         await AuditLogFunction(user._id , "LOGOUT_ALL_SESSIONS" , req);
         res.status(201).json({massage:"logged out successfully"});
@@ -283,6 +284,7 @@ export const verifySetup = async (req, res) => {
         })
 
         if(!verify){
+            await AuditLogFunction(user._id, "MFA_SETUP_FAILED", req);
             return res.status(400).json({massage:"invalid code"});
         }
 
@@ -317,6 +319,7 @@ export const verifyLogin = async (req, res) => {
         })
 
         if(!verify){
+            await AuditLogFunction(user._id , "MFA_VERIFY_FAILED" , req);
             return res.status(400).json({massage:"invalid code"});
         }
 
@@ -325,9 +328,10 @@ export const verifyLogin = async (req, res) => {
 
         //this only for testing cookie should httponly
         res.cookie("refreshtoken" , refreshToken , {
-            httpOnly: false,
-            secure: false,
-            sameSite: "none",
+            httpOnly: true,
+            secure: true,
+            sameSite: "strict",
+            
             
         })
 
@@ -378,9 +382,9 @@ export const refresh = async (req, res) => {
     const accessToken = generateAccessToken(user);
 
      res.cookie("refreshtoken" , newRefreshToken , {
-        httpOnly: false,
-        secure: false,
-        sameSite: "none",
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
     });
    
     res.status(200).json({
@@ -413,7 +417,7 @@ export const verifyEmail = async (req, res) => {
     user.emailVerificationTokenExpires = undefined;
 
     await user.save();
-
+    await AuditLogFunction(user._id, "EMAIL_VERIFIED", req);
     res.status(200).json({massage:"email verified successfully"});
     
 
@@ -447,6 +451,7 @@ export const resendEmailverify = async (req, res) => {
         await sendEmailVerification(user.email , token).catch((err) => {
             console.log("Error sending email",err);
         });
+        await AuditLogFunction(user._id, "EMAIL_VERIFICATION_SENT", req);
 
 
         res.status(200).json({massage:"email sent successfully"});
@@ -505,6 +510,7 @@ export const resetPassword = async (req, res) => {
      });
 
      if(!user){
+        await AuditLogFunction(null, "PASSWORD_RESET_FAILED", req, { hashedToken });
         return res.status(400).json({massage:"Invalid or expired token"});
 
      }
