@@ -20,16 +20,16 @@ A secure, production-ready authentication system built with Node.js/Express feat
 
 ## Features
 
-✅ **User Registration** - Email-based user registration with validation
-✅ **Email Verification** - Users must verify their email before login
-✅ **Two-Factor Authentication (2FA)** - QR code-based TOTP (Time-based One-Time Password)
-✅ **JWT Authentication** - Access tokens (7m) and refresh tokens (7d)
-✅ **Password Reset** - Secure password reset via email token
-✅ **Session Management** - Refresh token storage with device tracking
-✅ **Rate Limiting** - Global rate limiting and brute-force protection on login
-✅ **Data Sanitization** - MongoDB injection prevention
-✅ **Secure Cookies** - HttpOnly cookie management
-✅ **Error Handling** - Comprehensive error responses
+**User Registration** - Email-based user registration with validation
+**Email Verification** - Users must verify their email before login
+**Two-Factor Authentication (2FA)** - QR code-based TOTP (Time-based One-Time Password)
+**JWT Authentication** - Access tokens (7m) and refresh tokens (7d)
+**Password Reset** - Secure password reset via email token
+**Session Management** - Refresh token storage with device tracking
+**Rate Limiting** - Global rate limiting and brute-force protection on login
+**Data Sanitization** - MongoDB injection prevention
+**Secure Cookies** - HttpOnly cookie management
+**Error Handling** - Comprehensive error responses
 
 ---
 

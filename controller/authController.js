@@ -63,10 +63,13 @@ export const register = async (req, res) => {
 // Login: authenticate user (from Passport), check verification/2FA and issue tokens
 export const login = async (req, res) => {
     try{
+        console.time('Full Login');
+
         const user = req.user;
         const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
  
         //check active session and account lockout in parallel
+    
         const [activeSession , lockedOut] = await Promise.all([
             RefreshTokenModel.countDocuments({
                 userId:user._id,
@@ -157,10 +160,9 @@ export const logout = async (req, res) => {
         return res.status(401).json({massage:"invalid refresh token"});
     
          }
+     AuditLogFunction(tokenDoc.userId , "LOGOUT" , req);
 
-    await AuditLogFunction(tokenDoc.userId , "LOGOUT" , req);
-
-    await RefreshTokenModel.deleteOne({token:refreshToken});
+     RefreshTokenModel.deleteOne({token:refreshToken});
 
     res.clearCookie("refreshtoken" , {
         httpOnly: true,
