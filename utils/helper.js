@@ -2,6 +2,7 @@
 import AuditLog from "../models/AuditLog.js";
 import RefreshTokenModel from "../models/token.js";
 import loginAttempt from "../models/loginAttempt.js";
+import mongoose from "mongoose";
 
 const LOCK_OUT_DURATION = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPT = 5;
@@ -78,5 +79,24 @@ return{
 export const buildKey = async(action , ip , email) => {
     return`${action}:${ip}:${email}`
 }
+//function to check if the device is new
+//export const newDevice = async({
+  //  userId,
+    //ip_address,
+    //device
+//})=>{
+  //  const isNewDevice = await RefreshTokenModel.findOne({
+    //    userId,
+      //  ip_address: ip_address,
+        //device: device
+    //})
+
+   
+    //if(!isNewDevice){
+      //  return true;
+    //}
+    //return false;
+   
+//}
 
 
