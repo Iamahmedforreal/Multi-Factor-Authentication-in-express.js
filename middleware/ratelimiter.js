@@ -1,6 +1,7 @@
 import bucketSchema from "../models/ratelimit.js";
 import { buildKey, AuditLogFunction } from "../utils/helper.js";
 import RefreshTokenModel from "../models/token.js";
+import eventEmitter from "./eventEmmit.js";
 
 
 
@@ -33,6 +34,7 @@ export const loginRatelimit = async (req , res , next) => {
     )
     if(bucket.count > MAX_ATTEMP){ // check if the count if its more than limit block it 
         await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
+        eventEmitter.emit('limit_hit', {email:email , action:"LOGIN_RATE_LIMIT_HIT" , meta:{ip}});
         return res.status(429).json({
             error:"too many login attempts try again later",
             retryAfter: bucket.expiredAt
@@ -105,6 +107,7 @@ export const forgetpasswordratelimit = async (req , res , next) => {
 
     if(bucket.count > MAX_ATTEMP){
         await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
+
         return res.status(429).json({
             error:"too many forgot password attempts try again later",
             retryAfter: bucket.expiredAt

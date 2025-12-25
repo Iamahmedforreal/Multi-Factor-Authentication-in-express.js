@@ -57,11 +57,12 @@ Multi Factor Authentication/
 ├── controller/
 │   └── authController.js        # Authentication logic (register, login, 2FA, password reset)
 ├── middleware/
-│   ├── ratelimiter.js          # Global rate limiter
-│   └── bruteForceLimiter.js    # Login-specific brute force protection
+│   ├── ratelimiter.js          #  rate limiter
+│      
 ├── models/
 │   ├── user.js                 # User schema with MFA fields
 │   └── token.js                # RefreshToken schema for session tracking
+
 ├── route/
 │   └── Authroutes.js           # All auth endpoint definitions
 ├── utils/

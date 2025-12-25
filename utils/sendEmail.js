@@ -32,6 +32,21 @@ export const  sendEmailResetPassword = async(email , token) =>{
     })
 }
 
+export const sendWarningEmail = async(email, action, meta ,) =>{
+    let subject, text;
+    if (action === 'RATE_LIMIT_EXCEEDED') {
+        subject = "Security Alert: Too many attempts";
+        text = `We noticed multiple failed refresh attempts from IP: ${meta.userAgent}. Your account is safe but temporarily throttled.`;
+    } else if (action === 'NEW_LOGIN') {
+        subject = "New Login Detected";
+        text = `A new login occurred at ${meta.time}. If this wasn't you, change your password immediately.`;
+    }
+    await trasnporter.sendMail({
+        to:email,
+        subject:subject,
+        text:text
+    })
+}
 
 
 export default trasnporter;

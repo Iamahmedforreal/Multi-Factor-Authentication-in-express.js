@@ -8,10 +8,11 @@ import speakeasy from "speakeasy";
 import qrCode from "qrcode";
 import crypto from "crypto";
 import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema , emailSchema } from "../validators/registerValidation.js";
-import {sendEmailResetPassword, sendEmailVerification} from "../utils/sendEmail.js";
+import {sendEmailResetPassword, sendEmailVerification , sendWarningEmail} from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout } from "../utils/helper.js";
-
+import EventEmitter from "../middleware/eventEmmit.js";
+import { email } from "zod";
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
 const MAX_ACTIVE_SESSION = 5;
@@ -69,8 +70,8 @@ export const login = async (req, res) => {
 
         if(lockedOut.locked){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
-                    await AuditLogFunction(user._id, "LOGIN_LOCKED", req, { minutesRemaining: lockedOut.minutesRemaining });
-                    return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
+               await AuditLogFunction(user._id, "LOGIN_LOCKED", req, { minutesRemaining: lockedOut.minutesRemaining });
+               return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
         }
         if(!user.emailVerified){
             await recodLastLoginAttempt(user._id , ip , user.email , false);
@@ -112,9 +113,16 @@ export const login = async (req, res) => {
             sameSite: "strict",
             maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
         })
-        await AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req ,);
+        //getting time and user agent for audit log metadata
+        const time = new Date().toISOString();
+        const userAgent = req?.headers?.['user-agent'] || 'unknown device';
+        const meta = { time, ip, userAgent };
 
-        res.status(200).json({
+         AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , meta);
+        EventEmitter.emit('limit_hit', {email:user.email , action:"NEW_LOGIN" , meta:{ip}});
+       
+
+        return res.status(200).json({
             massage:"login successful",
             accessToken
         })
