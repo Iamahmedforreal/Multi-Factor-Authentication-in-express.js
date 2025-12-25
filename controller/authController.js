@@ -8,11 +8,11 @@ import speakeasy from "speakeasy";
 import qrCode from "qrcode";
 import crypto from "crypto";
 import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema , emailSchema } from "../validators/registerValidation.js";
-import {sendEmailResetPassword, sendEmailVerification , sendWarningEmail} from "../utils/sendEmail.js";
+import {sendEmailResetPassword, sendEmailVerification ,  } from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout } from "../utils/helper.js";
 import EventEmitter from "../middleware/eventEmmit.js";
-import { email } from "zod";
+import mongoose from "mongoose";
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
 const MAX_ACTIVE_SESSION = 5;
@@ -63,7 +63,7 @@ export const register = async (req, res) => {
 // Login: authenticate user (from Passport), check verification/2FA and issue tokens
 export const login = async (req, res) => {
     try{
-        console.time('Full Login');
+        
 
         const user = req.user;
         const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
@@ -114,6 +114,14 @@ export const login = async (req, res) => {
         const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
 
+        const isRecoGnizeDevice = await RefreshTokenModel.findOne({userId:user._id, ip_address:ip ,  expiresAt:{$gt: new Date()} });
+         
+             
+         
+         if(!isRecoGnizeDevice){
+            EventEmitter.emit('limit_hit', {email:user.email , action:"NEW_LOGIN" , meta:{ip}});
+         }
+
         await SaveRefreshToke(user._id , refreshToken , req);
 
         res.cookie("refreshtoken" , refreshToken , {
@@ -122,14 +130,13 @@ export const login = async (req, res) => {
             sameSite: "strict",
             maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
         })
-        //getting time and user agent for audit log metadata
-        const time = new Date().toISOString();
+        
         const userAgent = req?.headers?.['user-agent'] || 'unknown device';
-        const meta = { time, ip, userAgent };
 
-         AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , meta);
-        EventEmitter.emit('limit_hit', {email:user.email , action:"NEW_LOGIN" , meta:{ip}});
-       
+         AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , { userAgent , ip });
+
+    
+    
 
         return res.status(200).json({
             massage:"login successful",

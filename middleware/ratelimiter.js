@@ -34,7 +34,7 @@ export const loginRatelimit = async (req , res , next) => {
     )
     if(bucket.count > MAX_ATTEMP){ // check if the count if its more than limit block it 
         await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
-        eventEmitter.emit('limit_hit', {email:email , action:"LOGIN_RATE_LIMIT_HIT" , meta:{ip}});
+        eventEmitter.emit('limit_hit', {email:email , action:"RATE_LIMIT_EXCEEDED" , meta:{ip}});
         return res.status(429).json({
             error:"too many login attempts try again later",
             retryAfter: bucket.expiredAt
