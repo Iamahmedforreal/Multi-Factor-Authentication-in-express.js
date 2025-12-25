@@ -65,39 +65,45 @@ export const login = async (req, res) => {
     try{
         const user = req.user;
         const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
-
-        const lockedOut = await checkAccountLogout(user.email , ip);
+ 
+        //check active session and account lockout in parallel
+        const [activeSession , lockedOut] = await Promise.all([
+            RefreshTokenModel.countDocuments({
+                userId:user._id,
+                expiresAt: { $gt: Date.now() }
+            }),
+            checkAccountLogout(user.email , ip)
+        ])
+       
 
         if(lockedOut.locked){
-            await recodLastLoginAttempt(user._id , ip , user.email , false);
-               await AuditLogFunction(user._id, "LOGIN_LOCKED", req, { minutesRemaining: lockedOut.minutesRemaining });
-               return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
+             recodLastLoginAttempt(user._id , ip , user.email , false);
+             AuditLogFunction(user._id, "LOGIN_LOCKED", req, { minutesRemaining: lockedOut.minutesRemaining });
+            return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
         }
         if(!user.emailVerified){
-            await recodLastLoginAttempt(user._id , ip , user.email , false);
-                        await AuditLogFunction(user._id, "LOGIN_EMAIL_NOT_VERIFIED", req);
-                        return res.status(400).json({massage:"email not verified"});
+             recodLastLoginAttempt(user._id , ip , user.email , false);
+             AuditLogFunction(user._id, "LOGIN_EMAIL_NOT_VERIFIED", req);
+            return res.status(400).json({massage:"email not verified"});
         }
 
-        await recodLastLoginAttempt(user._id , ip , user.email , true);
+         recodLastLoginAttempt(user._id , ip , user.email , true);
 
 
-        const activeSession = await RefreshTokenModel.countDocuments({
-            userId: user._id,
-            expiresAt: { $gt: Date.now() }
-        
-        });
+      
         if(activeSession > MAX_ACTIVE_SESSION){
-            const oldSession = await RefreshTokenModel.findOne({userId:user._id})
-            .sort({created: 1})
-            if(oldSession){
-                await RefreshTokenModel.deleteOne({_id:oldSession._id});
-            }
+            RefreshTokenModel.findOne({userId:user._id}).sort({expiresAt:1})
+            .then(oldestToken => {
+                if(oldestToken){
+                     RefreshTokenModel.deleteOne({_id:oldestToken._id});
+                }
+            });
+                       
         }
 
         if(user.MfaActive){
             const temToken = genarateTemporaryToken(user);
-            await AuditLogFunction(user._id, "LOGIN_MFA_REQUIRED", req);
+             AuditLogFunction(user._id, "LOGIN_MFA_REQUIRED", req);
             return res.status(200).json({ massage: "verify your 2fa setup", temToken });
             
         }
