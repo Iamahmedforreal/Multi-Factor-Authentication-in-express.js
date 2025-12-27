@@ -8,7 +8,6 @@ const RefreshTokenSchema  = new mongoose.Schema({
         required: true,
         ref: "User",    
         unique: true,
-        
     },
 
     token:{
@@ -21,9 +20,7 @@ const RefreshTokenSchema  = new mongoose.Schema({
         required: true,
     },
     device:{
-        browser:String,
-        os:String,
-        deviceType:String,
+        type: String,
     },
     ip_address:{
         type: String,
@@ -32,13 +29,6 @@ const RefreshTokenSchema  = new mongoose.Schema({
     fingerPrint:{
         type: String,
         default:"unknown"
-    },
-    location:{
-        country:String,
-        region:String,
-        city:String,
-        LL:Number,
-        LT:Number
     },
     firstSeenAt:{
         type: Date,

@@ -2,6 +2,8 @@ import dotenv from "dotenv";
 dotenv.config();
 import nodemailer from "nodemailer";
 
+
+
 const trasnporter = nodemailer.createTransport({
     service: "gmail",
     auth:{
@@ -32,22 +34,44 @@ export const  sendEmailResetPassword = async(email , token) =>{
     })
 }
 
-export const sendWarningEmail = async(email, action, meta ,) =>{
-    let subject, text;
-    
-    if (action === 'RATE_LIMIT_EXCEEDED') {
-        subject = "Security Alert: Too many attempts";
-        text = `We noticed multiple failed refresh attempts from IP: ${meta.userAgent}. Your account is safe but temporarily throttled.`;
-    } else if (action === 'NEW_LOGIN') {
-        subject = "New Login Detected";
-        text = `A new login occurred at ${meta.time}. If this wasn't you, change your password immediately.`;
-    }
+export const sendWarningEmail = async(email, action, meta = {}) =>{
+    const ip = meta?.ip || 'unknown';
+    const deviceInfo = meta?.device ||' unknown';
+
+    const html = `<p> A new login to your account was detected:</p>
+      <ul>
+        <li><strong>IP:</strong> ${ip}</li>
+        <li><strong>Device:</strong> ${deviceInfo}</li>
+      </ul>
+      <p>If this wasn't you, please change your password immediately.</p>`;
+
+
     await trasnporter.sendMail({
         to:email,
-        subject:subject,
-        text:text
+        subject:"Security Alert",
+        html
     })
 }
+
+export const sendLoginAlertEmail = async(email, action , meta = {}) =>{
+    const ip = meta?.ip || 'unknown';
+    const deviceInfo = meta?.device ||  'unknown' ;
+
+    const html = `<p> A new login to your account was detected:</p>
+      <ul>
+        <li><strong>IP:</strong> ${ip}</li>
+        <li><strong>Device:</strong> ${deviceInfo}</li>
+      </ul>
+      <p>If this wasn't you, please change your password immediately.</p>`;
+
+    await trasnporter.sendMail({
+        to:email,
+        subject:"New Login Detected",
+        html
+    })
+    
+}
+
 
 
 export default trasnporter;

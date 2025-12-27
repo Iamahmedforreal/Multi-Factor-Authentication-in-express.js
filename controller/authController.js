@@ -9,11 +9,9 @@ import qrCode from "qrcode";
 import crypto from "crypto";
 import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema , emailSchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification ,  } from "../utils/sendEmail.js";
-import {sendEmailResetPassword, sendEmailVerification ,  } from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout, genrateFingerPrint , getDeviceInfo  , newDevice} from "../utils/helper.js";
 import EventEmitter from "../middleware/eventEmmit.js";
-import mongoose from "mongoose";
 import mongoose from "mongoose";
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
@@ -126,9 +124,10 @@ export const login = async (req, res) => {
         
         const isNewDevice = await newDevice({ userId: user._id, fingerPrint });
 
-        if(!isNewDevice){
-            EventEmitter.emit("NEW_LOGIN" , {userId:user._id , action:"NEW_LOGIN" , meta:{ip , device:deviceInfo}});
+        if(isNewDevice){
+            EventEmitter.emit("NEW_LOGIN", { email: user.email, action: "NEW_LOGIN", meta: { ip, device: deviceInfo } });
         }
+        console.log(isNewDevice)
 
         await SaveRefreshToke(user._id , refreshToken , req);
 

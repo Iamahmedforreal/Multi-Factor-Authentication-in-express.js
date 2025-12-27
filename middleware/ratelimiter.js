@@ -1,5 +1,5 @@
 import bucketSchema from "../models/ratelimit.js";
-import { buildKey, AuditLogFunction } from "../utils/helper.js";
+import { buildKey, AuditLogFunction , getIp , getDeviceInfo } from "../utils/helper.js";
 import RefreshTokenModel from "../models/token.js";
 import eventEmitter from "./eventEmmit.js";
 
@@ -34,7 +34,9 @@ export const loginRatelimit = async (req , res , next) => {
     )
     if(bucket.count > MAX_ATTEMP){ // check if the count if its more than limit block it 
         await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
-        eventEmitter.emit('limit_hit', {email:email , action:"RATE_LIMIT_EXCEEDED" , meta:{ip}});
+        const deviceInfo = getDeviceInfo(req);
+        const meta = {ip , deviceInfo};
+        eventEmitter.emit('limit_hit', {email:email , action:"RATE_LIMIT_EXCEEDED" , meta});
         return res.status(429).json({
             error:"too many login attempts try again later",
             retryAfter: bucket.expiredAt
