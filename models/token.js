@@ -15,26 +15,43 @@ const RefreshTokenSchema  = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-    
     }, 
-    
     expiresAt:{
         type: Date,
         required: true,
     },
     device:{
-        type: String,
-        default:"unknown"
+        browser:String,
+        os:String,
+        deviceType:String,
     },
     ip_address:{
         type: String,
         default: null    
     },
-    createdAt:{
+    fingerPrint:{
+        type: String,
+        default:"unknown"
+    },
+    location:{
+        country:String,
+        region:String,
+        city:String,
+        LL:Number,
+        LT:Number
+    },
+    firstSeenAt:{
         type: Date,
         default: Date.now,
-    }
-
+    },
+    lastSeenAt:{
+        type: Date,
+        default: Date.now,
+    },
+     createdAt:{
+        type: Date,
+        default: Date.now,
+    },
 
 })
 
