@@ -2,9 +2,13 @@
 import AuditLog from "../models/AuditLog.js";
 import RefreshTokenModel from "../models/token.js";
 import loginAttempt from "../models/loginAttempt.js";
+<<<<<<< HEAD
 import * as uaParserPkg from "ua-parser-js";
 const UAParser = uaParserPkg?.UAParser || uaParserPkg?.default || uaParserPkg;
 import crypto from "crypto";
+=======
+import mongoose from "mongoose";
+>>>>>>> cdb14fbcdb2954810934e76323f74d15edb0ad83
 
 const LOCK_OUT_DURATION = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPT = 5;
@@ -89,6 +93,7 @@ export const buildKey = async(action , ip , email) => {
     return`${action}:${ip}:${email}`
 }
 //function to check if the device is new
+<<<<<<< HEAD
 
 export const newDevice = async({
     userId,
@@ -139,5 +144,25 @@ export const getLocation = async(ip) => {
     }
 }
 
+=======
+//export const newDevice = async({
+  //  userId,
+    //ip_address,
+    //device
+//})=>{
+  //  const isNewDevice = await RefreshTokenModel.findOne({
+    //    userId,
+      //  ip_address: ip_address,
+        //device: device
+    //})
+
+   
+    //if(!isNewDevice){
+      //  return true;
+    //}
+    //return false;
+   
+//}
+>>>>>>> cdb14fbcdb2954810934e76323f74d15edb0ad83
 
 

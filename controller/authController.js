@@ -9,9 +9,11 @@ import qrCode from "qrcode";
 import crypto from "crypto";
 import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema , emailSchema } from "../validators/registerValidation.js";
 import {sendEmailResetPassword, sendEmailVerification ,  } from "../utils/sendEmail.js";
+import {sendEmailResetPassword, sendEmailVerification ,  } from "../utils/sendEmail.js";
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout, genrateFingerPrint , getDeviceInfo  , newDevice} from "../utils/helper.js";
 import EventEmitter from "../middleware/eventEmmit.js";
+import mongoose from "mongoose";
 import mongoose from "mongoose";
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
@@ -63,6 +65,7 @@ export const register = async (req, res) => {
 // Login: authenticate user (from Passport), check verification/2FA and issue tokens
 export const login = async (req, res) => {
     try{
+        
         
 
         const user = req.user;
@@ -137,7 +140,13 @@ export const login = async (req, res) => {
             maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
         })
         
+        
         const userAgent = req?.headers?.['user-agent'] || 'unknown device';
+
+         AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , { userAgent , ip });
+
+    
+    
 
          AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , { userAgent , ip });
 

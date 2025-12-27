@@ -34,6 +34,7 @@ export const  sendEmailResetPassword = async(email , token) =>{
 
 export const sendWarningEmail = async(email, action, meta ,) =>{
     let subject, text;
+    
     if (action === 'RATE_LIMIT_EXCEEDED') {
         subject = "Security Alert: Too many attempts";
         text = `We noticed multiple failed refresh attempts from IP: ${meta.userAgent}. Your account is safe but temporarily throttled.`;
