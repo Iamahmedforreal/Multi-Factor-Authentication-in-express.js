@@ -58,7 +58,7 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-userSchema.index({ email: 1 , isemailVerified:1});
+userSchema.index({ email: 1 , emailVerified:1});
 
 
 const User = mongoose.model("User", userSchema);

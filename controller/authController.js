@@ -63,15 +63,12 @@ export const register = async (req, res) => {
 // Login: authenticate user (from Passport), check verification/2FA and issue tokens
 export const login = async (req, res) => {
     try{
-        
-        
-
         const user = req.user;
         const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
  
         //check active session and account lockout in parallel
     
-        const [activeSession , lockedOut] = await Promise.all([
+        const [activeSession , lockedOut ] = await Promise.all([
             RefreshTokenModel.countDocuments({
                 userId:user._id,
                 expiresAt: { $gt: Date.now() }
@@ -116,20 +113,22 @@ export const login = async (req, res) => {
         const refreshToken = generateRefreshToken(user);
 
 
-     
-       
         const deviceInfo = getDeviceInfo(req);
+
         const fingerPrint = genrateFingerPrint(user._id , deviceInfo);
 
-        
-        const isNewDevice = await newDevice({ userId: user._id, fingerPrint });
+        const isNewDevice = await newDevice(user._id , fingerPrint);
+        console.log("fingerPrint" , fingerPrint);
+        console.log("isNewDevice" , isNewDevice);
+
+
 
         if(isNewDevice){
             EventEmitter.emit("NEW_LOGIN", { email: user.email, action: "NEW_LOGIN", meta: { ip, device: deviceInfo } });
         }
-        console.log(isNewDevice)
+        
 
-        await SaveRefreshToke(user._id , refreshToken , req);
+        await SaveRefreshToke(user._id , refreshToken , ip , deviceInfo , fingerPrint);
 
 
         res.cookie("refreshtoken" , refreshToken , {
@@ -144,12 +143,6 @@ export const login = async (req, res) => {
 
          AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , { userAgent , ip });
 
-    
-    
-
-         AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , { userAgent , ip });
-
-    
     
 
         return res.status(200).json({

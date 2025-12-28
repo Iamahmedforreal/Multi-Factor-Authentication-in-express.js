@@ -2,11 +2,10 @@
 import AuditLog from "../models/AuditLog.js";
 import RefreshTokenModel from "../models/token.js";
 import loginAttempt from "../models/loginAttempt.js";
-import * as uaParserPkg from "ua-parser-js";
-const UAParser = uaParserPkg?.UAParser || uaParserPkg?.default || uaParserPkg;
 import crypto from "crypto";
 const LOCK_OUT_DURATION = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPT = 5;
+import mongoose from "mongoose";
 
 export const handleError = (res , err , StatusCode = 500) => {
 
@@ -14,20 +13,11 @@ export const handleError = (res , err , StatusCode = 500) => {
     return res.status(StatusCode).json({massage: "An error occurred. Please try again later."});
 }
 
-export const SaveRefreshToke = async (userId , token , req) => {
-    const EXPIRES_AT = 7;
-    const deviceInfo = getDeviceInfo(req);
-    const ip = getIp(req);
-    const fingerPrint = genrateFingerPrint(userId , deviceInfo);
-    const expiresAt = new Date(Date.now() + EXPIRES_AT * 24 * 60 * 60 * 1000);
-  
-    
-
-
-    await RefreshTokenModel.create({
+export const SaveRefreshToke = async (userId , token , ip , deviceInfo , fingerPrint ) => {
+     await RefreshTokenModel.create({
         userId,
         token,
-        expiresAt,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         device: deviceInfo,
         ip_address: ip,
         fingerPrint,
@@ -83,19 +73,18 @@ return{
     locked:false,   
 }   
 }
-export const buildKey = async(action , ip , email) => {
+export const buildKey = (action , ip , email) => {
     return`${action}:${ip}:${email}`
 }
 //function to check if the device is new
 
-export const newDevice = async({
-    userId,
-    fingerPrint,
-})=>{
+export const newDevice = async(userId , fingerPrint) => {
+    
     const isNewDevice = await RefreshTokenModel.findOne({
-        userId,
-        fingerPrint
+        userId: new mongoose.Types.ObjectId(userId),
+        fingerPrint: fingerPrint
     })
+
 
    
     if(!isNewDevice){

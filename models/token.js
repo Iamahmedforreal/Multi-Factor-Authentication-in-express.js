@@ -47,6 +47,7 @@ const RefreshTokenSchema  = new mongoose.Schema({
 
 RefreshTokenSchema.index({userId:1 , expiresAt:-1});
 RefreshTokenSchema.index({userId:1 ,createdAt:-1});
+RefreshTokenSchema.index({userId:1 , fingerPrint:1});
 
 const RefreshTokenModel = mongoose.model("RefreshToken", RefreshTokenSchema);
 
