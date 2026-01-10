@@ -45,7 +45,7 @@ export const register = async (req, res) => {
 
         await newUser.save();
 
-        await AuditLogFunction(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
+         AuditLogFunction(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
 
         sendEmailVerification(newUser.email, token).catch((err) => {
             console.log("Error sending email",err);
