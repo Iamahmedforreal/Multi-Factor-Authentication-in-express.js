@@ -12,7 +12,7 @@ import {sendEmailResetPassword, sendEmailVerification ,  } from "../utils/sendEm
 import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
 import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout, genrateFingerPrint , getDeviceInfo  , newDevice} from "../utils/helper.js";
 import EventEmitter from "../middleware/eventEmmit.js";
-import mongoose from "mongoose";
+
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
 const MAX_ACTIVE_SESSION = 5;
