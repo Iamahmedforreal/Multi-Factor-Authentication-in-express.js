@@ -118,16 +118,12 @@ export const login = async (req, res) => {
         const fingerPrint = genrateFingerPrint(user._id , deviceInfo);
 
         const isNewDevice = await newDevice(user._id , fingerPrint);
-        console.log("fingerPrint" , fingerPrint);
-        console.log("isNewDevice" , isNewDevice);
-
-
+      
 
         if(isNewDevice){
             EventEmitter.emit("NEW_LOGIN", { email: user.email, action: "NEW_LOGIN", meta: { ip, device: deviceInfo } });
         }
         
-
         await SaveRefreshToke(user._id , refreshToken , ip , deviceInfo , fingerPrint);
 
 
