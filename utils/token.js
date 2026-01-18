@@ -3,9 +3,6 @@ import jwt from "jsonwebtoken";
 export const generateAccessToken = (user) => {
     const payload = {
         id: user._id,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        MfaActive: user.MfaActive,
         type: "access-token"
     }
 
