@@ -206,9 +206,6 @@ export const logoutAllSessions = async (req, res) => {
         return handleError(res , err);
     }
 
-    
-
-
 }
 
 // MFA Setup: generate TOTP secret/QR and save secret to user

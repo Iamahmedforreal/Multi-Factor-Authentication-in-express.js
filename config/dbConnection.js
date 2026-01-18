@@ -1,6 +1,6 @@
 import { connect } from "mongoose";
 
-
+//Db connection
 const dbConnection = async () =>{
     try{
         const MONGO_URL = process.env.MONGO_URL;

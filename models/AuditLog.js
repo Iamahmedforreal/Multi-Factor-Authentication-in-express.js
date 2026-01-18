@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-
+//  schema for aduitAction
 const AuditLogSchema = new mongoose.Schema({
     userId:{
         type: mongoose.Types.ObjectId,

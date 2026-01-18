@@ -12,7 +12,7 @@ export const handleError = (res , err , StatusCode = 500) => {
     console.error("error:" , err);
     return res.status(StatusCode).json({massage: "An error occurred. Please try again later."});
 }
-
+//function for saving token 
 export const SaveRefreshToke = async (userId , token , ip , deviceInfo , fingerPrint ) => {
      await RefreshTokenModel.create({
         userId,
@@ -24,6 +24,8 @@ export const SaveRefreshToke = async (userId , token , ip , deviceInfo , fingerP
         
     })    
 }
+
+//function for recording
 export const recodLastLoginAttempt = async (UserId , ip  , email ,successfull) =>{
     await loginAttempt.create({
         userId: UserId,
@@ -33,7 +35,7 @@ export const recodLastLoginAttempt = async (UserId , ip  , email ,successfull) =
         timestamp: new Date()
     })
 }
-
+// function for getting the audit
 export  const AuditLogFunction = async (userId , action , req ,  metadata={}) => {
     const ip_address = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
     const device  = req?.headers?.['user-agent'] || null;
@@ -50,7 +52,7 @@ export  const AuditLogFunction = async (userId , action , req ,  metadata={}) =>
 export const checkAccountLogout = async (email , ip) => {
  
 //we checking email or ip and if its in last LOCK_COUNT_ATTEMPT
- const recentLoginAttempts = await loginAttempt.find({
+ const recentLoginAttemp2ts = await loginAttempt.find({
     $or:[{email} , {ip}],
     timestamp: {$gte: new Date(Date.now() - LOCK_OUT_DURATION)}
  })

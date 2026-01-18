@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import { create } from "qrcode";
 
 
+//token schema 
 const RefreshTokenSchema  = new mongoose.Schema({
     userId:{
         type: mongoose.Types.ObjectId,

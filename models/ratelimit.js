@@ -1,6 +1,7 @@
 import mongoose, { now } from "mongoose";
 import { string } from "zod";
 
+// schema for keeping tag on user requst
 const bucketSchema  = new mongoose.Schema({
    
     key:{

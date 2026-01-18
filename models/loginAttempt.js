@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+//schema for loginAttempt we need to record for logout
 const LoginAttemptSchema = new mongoose.Schema({
     userId:{
         type: mongoose.Types.ObjectId,

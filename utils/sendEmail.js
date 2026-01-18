@@ -14,7 +14,9 @@ const trasnporter = nodemailer.createTransport({
 })
 
 export const  sendEmailVerification = async(email , token) =>{
-    const link = `http://localhost:7000/api/auth/verify-email?token=${token}`
+    const BASE_URL = process.env.BASE_URL 
+    const link = `${BASE_URL}/api/auth/verify-email?token=${token}`
+   
     await trasnporter.sendMail({
         to:email,
         subject:"verify email",
@@ -25,7 +27,9 @@ export const  sendEmailVerification = async(email , token) =>{
 
 
 export const  sendEmailResetPassword = async(email , token) =>{
-    const link = `http://localhost:7000/api/auth/reset-password?token=${token}`
+    const BASE_URL = process.env.BASE_URL
+    const link = `${BASE_URL}/api/auth/reset-password?token=${token}`
+    
     await trasnporter.sendMail({
         to:email,
         subject:"reset password",

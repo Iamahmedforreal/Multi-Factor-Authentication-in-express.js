@@ -16,7 +16,7 @@ export const loginRatelimit = async (req , res , next) => {
     if(!email){
         return res.status(403).json({error:"email not found"});
     }
-    const key = await buildKey("login" , ip , email);
+    const key = buildKey("login" , ip , email);
 
     const bucket = await bucketSchema.findOneAndUpdate({
         
