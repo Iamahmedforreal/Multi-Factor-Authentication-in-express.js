@@ -1,587 +1,298 @@
-import dotenv from "dotenv";
-dotenv.config();
-import User from "../models/user.js"
-import RefreshTokenModel from "../models/token.js";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import speakeasy from "speakeasy";
-import qrCode from "qrcode";
-import crypto from "crypto";
-import { registerSchema  , loginSchema  , resetPasswordSchema  , mfaVerifySchema , emailSchema } from "../validators/registerValidation.js";
-import {sendEmailResetPassword, sendEmailVerification ,  } from "../utils/sendEmail.js";
-import { generateAccessToken , generateRefreshToken , genarateTemporaryToken } from "../utils/token.js";
-import { handleError , SaveRefreshToke , recodLastLoginAttempt , AuditLogFunction, checkAccountLogout, genrateFingerPrint , getDeviceInfo  , newDevice} from "../utils/helper.js";
+
+import passport from "passport";
+import { asyncHandler } from "../middleware/errorHandler.js";
+import { authService, mfaService, sessionService, tokenService, userService, emailService } from "../services/index.js";
+import { getDeviceInfo, genrateFingerPrint, getIp } from "../utils/helper.js";
 import EventEmitter from "../middleware/eventEmmit.js";
 
+const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
-const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24;
-const MAX_ACTIVE_SESSION = 5;
-const REFRESH_TOKEN_EXPIRY = 7;
 
+// REGISTRATION & EMAIL VERIFICATION
 
-// Register: validate input, create a new user and send verification email
-export const register = async (req, res) => {
-    try {
-        const data = registerSchema.parse(req.body);
-        const {email , password} = data;
 
-        const user = await User.findOne({email:email.toLocaleUpperCase()});
-        if(user){
-            return res.status(400).json({massage:"user already exist"});
-        }
+export const register = asyncHandler(async (req, res) => {
+    const result = await authService.register(req.body, req);
+    res.status(200).json(result);
+});
 
-        const hashpassword = await bcrypt.hash(password, 12);
-        const token = crypto.randomBytes(32).toString("hex");
-        const hashToken = crypto.createHash("sha256").update(token).digest("hex");
-
-        const newUser = new User({
-            email: email.toLocaleUpperCase(),
-            password: hashpassword,
-            emailVerificationToken: hashToken,
-            emailVerificationTokenExpires: Date.now() + EMAIL_VERIFICATION_EXPIRY,
-            MfaActive:false,
-            TwoFactorSecret:""
-        });
-
-        await newUser.save();
-
-         AuditLogFunction(newUser._id , "USER_REGISTERED" , req , {email:newUser.email});
-
-        sendEmailVerification(newUser.email, token).catch((err) => {
-            console.log("Error sending email",err);
-        });;
-        res.status(200).json({massage:"user created successfully"});
-     
-    } catch (err) {
-        if (err == 'ZodError'){
-            return  res.status(400).json({massage:"input not valid"});
-        }
-        console.log("error:" ,err);
-        
-    }
-};
-// Login: authenticate user (from Passport), check verification/2FA and issue tokens
-export const login = async (req, res) => {
-    try{
-        const user = req.user;
-        const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
- 
-        //check active session and account lockout in parallel
-    
-        const [activeSession , lockedOut ] = await Promise.all([
-            RefreshTokenModel.countDocuments({
-                userId:user._id,
-                expiresAt: { $gt: Date.now() }
-            }),
-            checkAccountLogout(user.email , ip)
-        ])
-       
-
-        if(lockedOut.locked){
-             recodLastLoginAttempt(user._id , ip , user.email , false);
-             AuditLogFunction(user._id, "LOGIN_LOCKED", req, { minutesRemaining: lockedOut.minutesRemaining });
-            return res.status(429).json({error:`Account locked for ${lockedOut.minutesRemaining} minutes`})   
-        }
-        if(!user.emailVerified){
-             recodLastLoginAttempt(user._id , ip , user.email , false);
-             AuditLogFunction(user._id, "LOGIN_EMAIL_NOT_VERIFIED", req);
-            return res.status(400).json({massage:"email not verified"});
-        }
-
-         recodLastLoginAttempt(user._id , ip , user.email , true);
-
-
-      
-        if(activeSession > MAX_ACTIVE_SESSION){
-            RefreshTokenModel.findOne({userId:user._id}).sort({expiresAt:1})
-            .then(oldestToken => {
-                if(oldestToken){
-                     RefreshTokenModel.deleteOne({_id:oldestToken._id});
-                }
-            });
-                       
-        }
-
-        if(user.MfaActive){
-            const temToken = genarateTemporaryToken(user);
-             AuditLogFunction(user._id, "LOGIN_MFA_REQUIRED", req);
-            return res.status(200).json({ massage: "verify your 2fa setup", temToken });
-            
-        }
-
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
-
-
-        const deviceInfo = getDeviceInfo(req);
-
-        const fingerPrint = genrateFingerPrint(user._id , deviceInfo);
-
-        const isNewDevice = await newDevice(user._id , fingerPrint);
-      
-
-        if(isNewDevice){
-            EventEmitter.emit("NEW_LOGIN", { email: user.email, action: "NEW_LOGIN", meta: { ip, device: deviceInfo } });
-        }
-        
-        await SaveRefreshToke(user._id , refreshToken , ip , deviceInfo , fingerPrint);
-
-
-        res.cookie("refreshtoken" , refreshToken , {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
-            maxAge: REFRESH_TOKEN_EXPIRY * 24 * 60 * 60 * 1000,
-        })
-        
-        
-        const userAgent = req?.headers?.['user-agent'] || 'unknown device';
-
-         AuditLogFunction(user._id ,  "LOGIN_SUCCESS" , req , { userAgent , ip });
-
-    
-
-        return res.status(200).json({
-            massage:"login successful",
-            accessToken
-        })
-        
-      
-    }catch(err){
-        if(err == 'ZodError'){
-            return  res.status(400).json({massage:"input not valid"});
-        }
-        console.log("error:" ,err);
-        
-    }
-};
-
-
-// Logout: revoke current refresh token and clear cookie
-export const logout = async (req, res) => {
-   const refreshToken = req.cookies.refreshtoken;
-   if(!refreshToken) {
-    return res.status(400).json({massage:"refresh token not found"});
-   }
-
-   try{
-    const tokenDoc = await RefreshTokenModel.findOne({token:refreshToken});
-    if(!tokenDoc){
-        return res.status(401).json({massage:"invalid refresh token"});
-    
-         }
-     AuditLogFunction(tokenDoc.userId , "LOGOUT" , req);
-
-     RefreshTokenModel.deleteOne({token:refreshToken});
-
-    res.clearCookie("refreshtoken" , {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-    });
-    return res.status(200).json({massage:"logged out successfully"});
-    
-
-   }catch(err){
-    return handleError(res , err);
-   }
-   
-};
-// Logout All Sessions: delete all refresh tokens for the user and clear cookie
-export const logoutAllSessions = async (req, res) => {
-    try{
-        const user = req.user;
-
-      await RefreshTokenModel.deleteMany({userId:user._id});
-
-       res.clearCookie("refreshtoken" , {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
-        });
-        await AuditLogFunction(user._id , "LOGOUT_ALL_SESSIONS" , req);
-        res.status(201).json({massage:"logged out successfully"});
-
-    }catch(err){
-        return handleError(res , err);
-    }
-
-}
-
-// MFA Setup: generate TOTP secret/QR and save secret to user
-export const mfa = async (req, res) => {
-    try{
-        const user = req.user;
-        if(user.MfaActive && user.TwoFactorSecret){
-            return res.status(400).json({massage:"mfa already setup reset it first"});
-        }
-
-        const secret = speakeasy.generateSecret({
-            issuer:"authentication-service",
-            name:`${user.email}`,
-            length:20
-        })
-
-        user.TwoFactorSecret = secret.base32;
-        await user.save();
-
-        const url = speakeasy.otpauthURL({
-            secret: secret.base32,
-            label: `${user.email}`,
-            issuer: "authenticaterApp",
-            encoding: "base32",
-        });
-
-        const qrImage = await qrCode.toDataURL(url);
-
-        await AuditLogFunction(user._id , "MFA_SETUP_INITIATED" , req);
-        res.status(201).json({
-            qrImage,
-            massage:"mfa setup initiated"
-        });        
-
-    }catch(err){
-        return handleError(res , err);
-    }
-  
- 
-};
-// Reset MFA: disable 2FA for the user and revoke sessions
-export const resetmfa = async (req, res) => {
-      
-      const user = req.user;
-        
-        if (!user.MfaActive) {
-            return res.status(400).json({ error: "2FA is not enabled" });
-        }
-
-        user.TwoFactorSecret = "";
-        user.MfaActive = false;
-        await user.save();
-
-        await RefreshTokenModel.deleteMany({ userId: user._id });
-
-        await AuditLogFunction(user._id, 'MFA_DISABLED', req);
-
-        res.status(200).json({ 
-            message: "2FA has been disabled. Please log in again." 
-        });
-
-    } 
-
-
-
-// User Status: return user email, verification and MFA status plus active sessions
-export const userStatus = async (req, res) => {
-    const user = req.user
-    const activeSession = await RefreshTokenModel.countDocuments({
-        userId:user._id,
-        expiresAt: { $gt: Date.now() }
-    
-    });
-    res.status(200).json({
-        email: user.email,
-        emailVerified: user.emailVerified,
-        MfaActive: user.MfaActive,
-        activeSession
-    })
-};
-// Verify MFA Setup: verify TOTP during setup and enable MFA
-export const verifySetup = async (req, res) => {
-    try{
-        const {code} = mfaVerifySchema.parse(req.body);
-        const user = req.user;
-
-        if(!code){
-            return res.status(400).json({massage:"code is required"});
-        }
-
-        if(!user.TwoFactorSecret){
-            return res.status(400).json({massage:"mfa not setup please set it up first"});
-        }
-
-        const verify = speakeasy.totp.verify({
-            secret: user.TwoFactorSecret,
-            encoding: "base32",
-            token: code,
-        })
-
-        if(!verify){
-            await AuditLogFunction(user._id, "MFA_SETUP_FAILED", req);
-            return res.status(400).json({massage:"invalid code"});
-        }
-
-        user.MfaActive = true;
-        await user.save();
-
-        await AuditLogFunction(user._id , "MFA_ENABLED" , req);
-
-    res.status(200).json({
-        massage:"mfa verified successfully"
-    })
-
-}catch(err){
-    return handleError(res , err);
-}
-};
-
-// Verify MFA Login: verify TOTP during login and issue tokens
-export const verifyLogin = async (req, res) => {
-    try{
-        const user = mfaVerifySchema.parse(req.user);
-        const {code} = req.body;
-
-        if(!user.MfaActive){
-            return res.status(400).json({massage:"mfa not setup please set it up first"});
-        }
-
-        const verify = speakeasy.totp.verify({
-            secret: user.TwoFactorSecret,
-            encoding: "base32",
-            token: code,
-        })
-
-        if(!verify){
-            await AuditLogFunction(user._id , "MFA_VERIFY_FAILED" , req);
-            return res.status(400).json({massage:"invalid code"});
-        }
-
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
-
-        //this only for testing cookie should httponly
-        res.cookie("refreshtoken" , refreshToken , {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
-            
-            
-        })
-
-        await SaveRefreshToke(user._id , refreshToken , req);
-        await AuditLogFunction(user._id , "LOGIN_MFA_VERIFIED" , req);
-
-        res.status(200).json({
-            massage:"login successful",
-            accessToken
-        })
-    }catch(err){
-        return handleError(res , err);
-    }
-}
-// Refresh: exchange a valid refresh token (cookie) for a new access token
-export const refresh = async (req, res) => {
-
- try{
-    const refreshToken = req.cookies.refreshtoken;
-    if (!refreshToken){
-        return res.status(401).json({massage:"refresh token not found"});
-    }
-
-    const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken });
-    if (!tokenDoc){
-        return res.status(401).json({massage:"invalid refresh token"});
-    } 
-    if (tokenDoc.expiresAt < new Date()){
-        await RefreshTokenModel.deleteOne({ _id: tokenDoc._id });
-        return res.status(401).json({massage:"refresh token expired"});
-    }
-
-     jwt.verify(refreshToken , process.env.JWT_REFRESH_SECRET);
- 
-    const user = await User.findById(tokenDoc.userId);
-
-    if (!user){
-        return res.status(401).json({massage:"user not found"});
-    }
-    
-    const newRefreshToken = generateRefreshToken(user);
-    await SaveRefreshToke(user._id , newRefreshToken , req);
- 
-
-    await RefreshTokenModel.deleteOne({ _id: tokenDoc._id });
-
-    await AuditLogFunction(user._id , "TOKEN_REFRESHED" , req);
-    const accessToken = generateAccessToken(user);
-
-     res.cookie("refreshtoken" , newRefreshToken , {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-    });
-   
-    res.status(200).json({
-        accessToken,
-        massage:"new token generated"
-    });
-
-}catch(err){
-    return handleError(res , err);
-}
-}
-
-// Verify Email: validate verification token and mark user as verified
-export const verifyEmail = async (req, res) => {
-  try {
+export const verifyEmail = asyncHandler(async (req, res) => {
     const { token } = req.query;
+    const result = await authService.verifyEmail(token, req);
+    res.status(200).json(result);
+});
 
-    const hashToken = crypto.createHash("sha256").update(token).digest("hex");
-    
-    const user = await User.findOne({
-        emailVerificationToken: hashToken,
-        emailVerificationTokenExpires: { $gt: Date.now() }
-    })
-    if (!user) {
-      return res.status(400).json("Invalid or expired token");
-    }
+export const resendEmailVerification = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    const result = await authService.resendEmailVerification(email, req);
+    res.status(200).json(result);
+});
 
-    user.emailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationTokenExpires = undefined;
 
-    await user.save();
-    await AuditLogFunction(user._id, "EMAIL_VERIFIED", req);
-    res.status(200).json({massage:"email verified successfully"});
-    
+// LOGIN & AUTHENTICATION
 
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("Server error");
-  }
-};
-// Resend Email Verification: generate a new token and email it to the user
-export const resendEmailverify = async (req, res) => {
-    try{
-        const {email} = emailSchema.parse(req.body);
 
-        const user = await User.findOne({email});
+export const login = asyncHandler(async (req, res) => {
+    const user = req.user; // From passport middleware
+    const ip = getIp(req);
+    const deviceInfo = getDeviceInfo(req);
 
-        if(!user){
-            return res.status(400).json({massage:"user not found"});
-        }
+    // Validate login (email verification, account lockout)
+    const validation = await authService.validateLogin(user, ip);
 
-        if(user.emailVerified){
-            return res.status(400).json({massage:"email already verified"});
-        }
+    // Manage active sessions (enforce max limit)
+    await sessionService.manageActiveSessions(user._id);
 
-        const token = crypto.randomBytes(32).toString("hex");
-        const hashedToken =crypto.createHash("sha256").update(token).digest("hex");
-
-        user.emailVerificationToken = hashedToken;
-        user.emailVerificationTokenExpires = Date.now() + EMAIL_VERIFICATION_EXPIRY;
-        await user.save();
-
-        await sendEmailVerification(user.email , token).catch((err) => {
-            console.log("Error sending email",err);
+    // Check if MFA is required
+    if (validation.requiresMfa) {
+        const tempToken = tokenService.generateTemporaryToken(user);
+        return res.status(200).json({
+            success: true,
+            message: "MFA verification required",
+            tempToken
         });
-        await AuditLogFunction(user._id, "EMAIL_VERIFICATION_SENT", req);
-
-
-        res.status(200).json({massage:"email sent successfully"});
-
-    }catch(err){
-        return handleError(res , err);
-
-    }
-}
-// Forgot Password: generate password reset token and send reset email
-export const forgotPassword = async (req, res) => {
-    try{
-    const {email} = req.body;
-
-    const user = await User.findOne({email});
-
-    if(!user){
-         return res.status(400).json("user does not exist");
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const hashToken = crypto.createHash("sha256").update(token).digest("hex");
+    // Generate tokens
+    const accessToken = tokenService.generateAccessToken(user);
+    const refreshToken = tokenService.generateRefreshToken(user);
 
-    
+    // Check for new device
+    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
+    const isNewDevice = await sessionService.isNewDevice(user._id, fingerPrint);
 
-    user.resetPasswordToken = hashToken;
-    user.resetPasswordTokenExpires = Date.now() + 1000 * 60 * 15;
-    await user.save();
-
-    await AuditLogFunction(user._id , "PASSWORD_RESET_REQUESTED" , req);
-    await sendEmailResetPassword(user.email, token);
-    res.status(200).json("password reset email sent");
-    }catch(err){
-        console.log(err);
+    if (isNewDevice) {
+        EventEmitter.emit("NEW_LOGIN", {
+            email: user.email,
+            action: "NEW_LOGIN",
+            meta: { ip, device: deviceInfo }
+        });
     }
-    
-}
 
-// Reset Password: validate reset token and set new password
-export const resetPassword = async (req, res) => {
-    try{
-     const {token} = req.query;
-     const {Newpassword , confirmPassword} = req.body;
- 
+    // Save session
+    await sessionService.saveRefreshToken(user._id, refreshToken, ip, deviceInfo, fingerPrint);
 
-     if(Newpassword !== confirmPassword){
-        return res.status(400).json({massage:"password do not match"});
-     }
+    // Update last login
+    await userService.updateLastLogin(user._id);
 
-     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    // Set secure cookie
+    res.cookie("refreshtoken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: "strict",
+        maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    });
 
+    res.status(200).json({
+        success: true,
+        message: "Login successful",
+        accessToken
+    });
+});
 
-     const user = await User.findOne({
-        resetPasswordToken: hashedToken,
-        resetPasswordTokenExpires: { $gt: Date.now() }
-     });
+export const logout = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies.refreshtoken;
 
-     if(!user){
-        await AuditLogFunction(null, "PASSWORD_RESET_FAILED", req, { hashedToken });
-        return res.status(400).json({massage:"Invalid or expired token"});
-
-     }
-
-     user.password = await bcrypt.hash(Newpassword, 12);
-     user.resetPasswordToken = undefined;
-     user.resetPasswordTokenExpires = undefined;
-     await user.save();
-
-     await AuditLogFunction(user._id , "PASSWORD_RESET_COMPLETED" , req);
-     res.status(200).json({massage:"password reset successfully"});
-
-
-    }catch(err){
-        console.log(err);
+    if (!refreshToken) {
+        return res.status(400).json({
+            success: false,
+            error: "No active session found"
+        });
     }
-}
 
-// Change Password: authenticated endpoint to change current user's password
-export const changePassword = async (req, res) => {
-    try{
-        const user = req.user;
-        const{currantPassword , newPassword , confirmPassword} = req.body;
+    const tokenDoc = await sessionService.validateRefreshToken(refreshToken);
+    await sessionService.deleteToken(tokenDoc._id);
 
-     
+    res.clearCookie("refreshtoken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: "strict",
+    });
 
-        if(!currantPassword || !newPassword || !confirmPassword){
-            return res.status(400).json({massage:"all fields are required"});
-        }
-        if(newPassword !== confirmPassword){
-            res.status(400).json({massage:"password do not match"});
-        }
-        const validPassword = await bcrypt.compare(currantPassword , user.password);
-        if(!validPassword){
-            await AuditLogFunction(user._id , "PASSWORD_CHANGE_FAILED" , req);
-            return res.status(400).json({massage:"invalid password"});
-        }
+    res.status(200).json({
+        success: true,
+        message: "Logged out successfully"
+    });
+});
 
-        user.password = await bcrypt.hash(newPassword , 12);
-        await user.save();
+export const logoutAllSessions = asyncHandler(async (req, res) => {
+    const user = req.user;
+    const count = await sessionService.revokeAllSessions(user._id, req);
 
-        await AuditLogFunction(user._id , "PASSWORD_CHANGED" , req);
+    res.clearCookie("refreshtoken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: "strict",
+    });
 
-        res.status(200).json({massage:"password changed successfully"});
+    res.status(200).json({
+        success: true,
+        message: `Logged out from ${count} session(s) successfully`
+    });
+});
 
-    }catch(err){
-        return handleError(res , err);
+
+// TOKEN REFRESH
+
+export const refresh = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies.refreshtoken;
+
+    if (!refreshToken) {
+        throw new Error("INVALID_REFRESH_TOKEN");
     }
-}
 
+    // Validate refresh token from database
+    const tokenDoc = await sessionService.validateRefreshToken(refreshToken);
+
+    // Verify JWT signature
+    tokenService.verifyRefreshToken(refreshToken);
+
+    // Get user
+    const user = await userService.findById(tokenDoc.userId);
+    if (!user) {
+        throw new Error("USER_NOT_FOUND");
+    }
+
+    // Generate new tokens
+    const newAccessToken = tokenService.generateAccessToken(user);
+    const newRefreshToken = tokenService.generateRefreshToken(user);
+
+    // Save new refresh token
+    const ip = getIp(req);
+    const deviceInfo = getDeviceInfo(req);
+    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
+    await sessionService.saveRefreshToken(user._id, newRefreshToken, ip, deviceInfo, fingerPrint);
+
+    // Delete old refresh token
+    await sessionService.deleteToken(tokenDoc._id);
+
+    // Update last seen
+    res.cookie("refreshtoken", newRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: "strict",
+        maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+        success: true,
+        accessToken: newAccessToken,
+        message: "Token refreshed successfully"
+    });
+});
+
+
+// MULTI-FACTOR AUTHENTICATION
+
+
+export const setupMfa = asyncHandler(async (req, res) => {
+    const user = req.user;
+    const result = await mfaService.setupMfa(user, req);
+
+    res.status(200).json({
+        success: true,
+        ...result
+    });
+});
+
+export const verifyMfaSetup = asyncHandler(async (req, res) => {
+    const user = req.user;
+    const { code } = req.body;
+
+    await mfaService.verifyMfaSetup(user, code, req);
+
+    res.status(200).json({
+        success: true,
+        message: "MFA enabled successfully"
+    });
+});
+
+export const verifyMfaLogin = asyncHandler(async (req, res) => {
+    const user = req.user; // From temp-jwt strategy
+    const { code } = req.body;
+    const ip = getIp(req);
+    const deviceInfo = getDeviceInfo(req);
+
+    // Verify MFA code
+    await mfaService.verifyMfaLogin(user, code, req);
+
+    // Generate tokens
+    const accessToken = tokenService.generateAccessToken(user);
+    const refreshToken = tokenService.generateRefreshToken(user);
+
+    // Save session
+    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
+    await sessionService.saveRefreshToken(user._id, refreshToken, ip, deviceInfo, fingerPrint);
+
+    res.cookie("refreshtoken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: "strict",
+        maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Login successful",
+        accessToken
+    });
+});
+
+export const resetMfa = asyncHandler(async (req, res) => {
+    const user = req.user;
+    const result = await mfaService.resetMfa(user, req);
+
+    res.clearCookie("refreshtoken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: "strict",
+    });
+
+    res.status(200).json({
+        success: true,
+        massage: result.message,
+    });
+});
+
+
+// PASSWORD MANAGEMENT
+
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    const result = await authService.forgotPassword(email, req);
+    res.status(200).json(result);
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+    const { token } = req.query;
+    const { Newpassword, confirmPassword } = req.body;
+
+    const result = await authService.resetPassword(token, Newpassword, confirmPassword, req);
+    res.status(200).json(result);
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+    const user = req.user;
+    const { currantPassword, newPassword, confirmPassword } = req.body;
+
+    const result = await authService.changePassword(user, currantPassword, newPassword, confirmPassword, req);
+    res.status(200).json(result);
+});
+
+
+// USER STATUS
+
+
+export const userStatus = asyncHandler(async (req, res) => {
+    const user = req.user;
+    const activeSessionCount = await sessionService.getActiveSessions(user._id);
+
+    const status = userService.getUserStatus(user, activeSessionCount.length);
+
+    res.status(200).json({
+        success: true,
+        data: status
+    });
+});
 

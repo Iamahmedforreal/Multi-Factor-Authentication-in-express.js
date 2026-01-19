@@ -1,81 +1,22 @@
-import dotenv from "dotenv";
-dotenv.config();
-import nodemailer from "nodemailer";
+// Legacy email utilities - now delegates to emailService
+// This file maintained for backwards compatibility
+import emailService from '../services/emailService.js';
 
-
-
-const trasnporter = nodemailer.createTransport({
-    service: "gmail",
-    auth:{
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-
-    }
-})
-
-export const  sendEmailVerification = async(email , token) =>{
-    const BASE_URL = process.env.BASE_URL 
-    const link = `${BASE_URL}/api/auth/verify-email?token=${token}`
-   
-    await trasnporter.sendMail({
-        to:email,
-        subject:"verify email",
-        html:`<p> Click to verify your email </p>
-             <a href="${link}">${link}</a>`
-    })
+export const sendEmailVerification = async (email, token) => {
+    return await emailService.sendEmailVerification(email, token);
 }
 
-
-export const  sendEmailResetPassword = async(email , token) =>{
-    const BASE_URL = process.env.BASE_URL
-    const link = `${BASE_URL}/api/auth/reset-password?token=${token}`
-    
-    await trasnporter.sendMail({
-        to:email,
-        subject:"reset password",
-        html:`<p> Click to verify your email </p>
-             <a href="${link}">${link}</a>`
-    })
+export const sendEmailResetPassword = async (email, token) => {
+    return await emailService.sendPasswordResetEmail(email, token);
 }
 
-export const sendWarningEmail = async(email, action, meta = {}) =>{
-    const ip = meta?.ip || 'unknown';
-    const deviceInfo = meta?.device ||' unknown';
-
-    const html = `<p> A new login to your account was detected:</p>
-      <ul>
-        <li><strong>IP:</strong> ${ip}</li>
-        <li><strong>Device:</strong> ${deviceInfo}</li>
-      </ul>
-      <p>If this wasn't you, please change your password immediately.</p>`;
-
-
-    await trasnporter.sendMail({
-        to:email,
-        subject:"Security Alert",
-        html
-    })
+export const sendWarningEmail = async (email, action, meta = {}) => {
+    return await emailService.sendSecurityWarning(email, action, meta);
 }
 
-export const sendLoginAlertEmail = async(email, action , meta = {}) =>{
-    const ip = meta?.ip || 'unknown';
-    const deviceInfo = meta?.device ||  'unknown' ;
-
-    const html = `<p> A new login to your account was detected:</p>
-      <ul>
-        <li><strong>IP:</strong> ${ip}</li>
-        <li><strong>Device:</strong> ${deviceInfo}</li>
-      </ul>
-      <p>If this wasn't you, please change your password immediately.</p>`;
-
-    await trasnporter.sendMail({
-        to:email,
-        subject:"New Login Detected",
-        html
-    })
-    
+export const sendLoginAlertEmail = async (email, action, meta = {}) => {
+    return await emailService.sendNewDeviceLoginAlert(email, action, meta);
 }
 
-
-
-export default trasnporter;
+// Export service for direct access
+export default emailService;

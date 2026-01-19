@@ -1,24 +1,28 @@
 import { connect } from "mongoose";
 
-//Db connection
-const dbConnection = async () =>{
-    try{
-        const MONGO_URL = process.env.MONGO_URL;
+import mongoose from "mongoose";
+import dotenv from "dotenv";
 
-        if(!MONGO_URL){
-            console.log("cant find mongo url")
+dotenv.config();
 
-        }
-
-        const MongoUrl = await connect(process.env.MONGO_URL,);
-        console.log(`database connected to ${MongoUrl.connection.host}`);
-
-    }catch(error){
-        console.log(error);
-        process.exit(1);
-    
+const dbConnection = async () => {
+    try {
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log("Database connection successful");
+    } catch (error) {
+        console.error("Database connection failed:", error);
+        throw error;
     }
+};
 
-}
+// Check connection status
+dbConnection.checkConnection = () => {
+    return mongoose.connection.readyState === 1; // 1 = connected
+};
+
+// Close connection gracefully
+dbConnection.close = async () => {
+    await mongoose.connection.close();
+};
 
 export default dbConnection;

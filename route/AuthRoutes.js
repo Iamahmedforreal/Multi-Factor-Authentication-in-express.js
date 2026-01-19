@@ -1,50 +1,75 @@
 import express from "express";
 import passport from "passport";
-const router = express.Router();
 
-import {loginRatelimit , refreshratelimit, resetPasswordConfirmRatelimit , forgetpasswordratelimit, mfaVerifyRatelimit} from "../middleware/ratelimiter.js"
+import {
+    loginRatelimit,
+    refreshratelimit,
+    resetPasswordConfirmRatelimit,
+    forgetpasswordratelimit,
+    mfaVerifyRatelimit
+} from "../middleware/ratelimiter.js";
 
-import { 
+import {
     login,
     register,
     logout,
     userStatus,
-    mfa,
-    resetmfa,
+    setupMfa,
+    resetMfa,
     refresh,
     verifyEmail,
     forgotPassword,
     resetPassword,
-    verifyLogin,
-    verifySetup,
+    verifyMfaLogin,
+    verifyMfaSetup,
     changePassword,
     logoutAllSessions,
-    resendEmailverify
-    
-
+    resendEmailVerification
 } from "../controller/authController.js";
 
-//pulic route
-router.post("/register",register);
+const router = express.Router();
+
+
+// PUBLIC ROUTES
+
+
+// Registration & Email Verification
+router.post("/register", register);
+router.get("/verify-email", verifyEmail);
+router.post("/resend-email-verify", resendEmailVerification);
+
+// Authentication
+router.post("/login", loginRatelimit, passport.authenticate('local', { session: false }), login);
 router.post("/logout", logout);
-router.get("/verify-email" , verifyEmail);
-router.post("/forgot-password",forgetpasswordratelimit ,forgotPassword);
-router.post("/reset-password" , resetPasswordConfirmRatelimit, resetPassword);
-router.get("/refresh" ,refreshratelimit , refresh);
-router.post("/login" ,loginRatelimit,passport.authenticate('local' , {session: false}), login);
-router.post("/resend-email-verify" , resendEmailverify);
+router.get("/refresh", refreshratelimit, refresh);
 
-//private route
-router.get("/status", passport.authenticate('jwt', {session:false}), userStatus);
-router.post("/2fa/setup" , passport.authenticate('jwt', {session:false}), mfa);
-router.post("/2fa/login/verify" ,  passport.authenticate('temp-jwt', {session:false}), verifyLogin)
-router.post("/2fa/login/verify" ,  passport.authenticate('temp-jwt', {session:false}), mfaVerifyRatelimit, verifyLogin)
-router.post("/2fa/setup/verify"  ,  passport.authenticate('jwt', {session:false}), mfaVerifyRatelimit, verifySetup)
-router.post("/2fa/reset", passport.authenticate('jwt',{session:false}) ,resetmfa);
+// Password Management
+router.post("/forgot-password", forgetpasswordratelimit, forgotPassword);
+router.post("/reset-password", resetPasswordConfirmRatelimit, resetPassword);
 
 
-router.post("/change-password" , passport.authenticate('jwt', {session:false}), changePassword);
-router.post("/logout-all" , passport.authenticate('jwt', {session:false}), logoutAllSessions);
+// PROTECTED ROUTES (JWT Required)
 
+
+// User Status
+router.get("/status", passport.authenticate('jwt', { session: false }), userStatus);
+
+// Password Change
+router.post("/change-password", passport.authenticate('jwt', { session: false }), changePassword);
+
+// Session Management
+router.post("/logout-all", passport.authenticate('jwt', { session: false }), logoutAllSessions);
+
+// MFA Setup & Management
+router.post("/2fa/setup", passport.authenticate('jwt', { session: false }), setupMfa);
+router.post("/2fa/setup/verify", passport.authenticate('jwt', { session: false }), mfaVerifyRatelimit, verifyMfaSetup);
+router.post("/2fa/reset", passport.authenticate('jwt', { session: false }), resetMfa);
+
+
+// PROTECTED ROUTES (Temporary JWT for MFA)
+
+
+// MFA Login Verification
+router.post("/2fa/login/verify", passport.authenticate('temp-jwt', { session: false }), mfaVerifyRatelimit, verifyMfaLogin);
 
 export default router;
