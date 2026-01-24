@@ -138,9 +138,10 @@ class SessionService {
      * @param {string} tokenId - Token document ID
      * @returns {Promise<boolean>} - True if deleted
      */
-    async deleteToken(tokenId) {
-        const result = await RefreshTokenModel.deleteOne({ _id: tokenId });
-        return result.deletedCount > 0;
+    async deleteToken(userId , jti) {
+        const tokenKey = `refresh:${userId}:${jti}`;
+        const result = await redis.del(tokenKey);
+        return result > 0;
     }
 
     /**
