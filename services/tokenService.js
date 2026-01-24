@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 
 dotenv.config();
-
+import crypto from "crypto";
 class TokenService {
     constructor() {
         this.accessTokenSecret = process.env.JWT_SECRET;
@@ -43,9 +43,13 @@ class TokenService {
      * @returns {string} - JWT refresh token
      */
     generateRefreshToken(user) {
+
+        const jti = crypto.randomBytes(16).toString("hex"); 
+
         const payload = {
             id: user._id.toString(),
-            type: "refresh-token"
+            type: "refresh-token",
+            jti
         };
 
         return jwt.sign(payload, this.refreshTokenSecret, {
@@ -141,7 +145,6 @@ class TokenService {
     }
 
     /**
-     * Decode token without verification (useful for debugging)
      * @param {string} token - JWT token
      * @returns {Object|null} - Decoded payload or null
      */
