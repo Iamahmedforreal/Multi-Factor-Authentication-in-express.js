@@ -70,7 +70,7 @@ export const login = asyncHandler(async (req, res) => {
     }
 
     // Save session
-    await sessionService.saveRefreshToken(user._id, refreshToken, ip, deviceInfo, fingerPrint);
+    await sessionService.saveRefreshToken(user._id, refreshToken);
 
     // Update last login
     await userService.updateLastLogin(user._id);
