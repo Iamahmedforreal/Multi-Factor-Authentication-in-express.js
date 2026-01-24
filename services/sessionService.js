@@ -35,22 +35,7 @@ class SessionService {
      * @returns {Promise<number>} - Number of active sessions
      */
     async manageActiveSessions(userId) {
-        const activeSessionCount = await RefreshTokenModel.countDocuments({
-            userId,
-            expiresAt: { $gt: Date.now() }
-        });
-
-        // If max sessions exceeded, remove oldest session
-        if (activeSessionCount >= MAX_ACTIVE_SESSIONS) {
-            const oldestToken = await RefreshTokenModel.findOne({ userId })
-                .sort({ expiresAt: 1 });
-
-            if (oldestToken) {
-                await RefreshTokenModel.deleteOne({ _id: oldestToken._id });
-            }
-        }
-
-        return activeSessionCount;
+        const activeSessions = await this.getActiveSessions(userId);
     }
 
     /**
@@ -125,19 +110,27 @@ class SessionService {
      * @throws {Error} - If token invalid or expired
      */
     async validateRefreshToken(token) {
-        const tokenDoc = await RefreshTokenModel.findOne({ token });
+        const decoded = tokenService.decodeToken(token);
+        const jti = decoded?.jti;
+        const userId = decoded?.id;
 
-        if (!tokenDoc) {
+        if (!jti || !userId) {
+            throw new Error("INVALID_REFRESH_TOKEN_FORMAT");
+        }
+      
+        const tokenKey = `refresh:${userId}:${jti}`;
+        const storedHash = await redis.get(tokenKey);
+
+        if (!storedHash){
+            throw new Error("REFRESH_TOKEN_EXPIRED_OR_INVALID");
+        }
+        const IncomingToken = crypto.createHash("sha256").update(token).digest("hex");
+
+        if (storedHash !== IncomingToken) {
             throw new Error("INVALID_REFRESH_TOKEN");
         }
-
-        if (tokenDoc.expiresAt < new Date()) {
-            // Clean up expired token
-            await RefreshTokenModel.deleteOne({ _id: tokenDoc._id });
-            throw new Error("REFRESH_TOKEN_EXPIRED");
-        }
-
-        return tokenDoc;
+        return { userId, jti }
+        
     }
 
     /**
