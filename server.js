@@ -9,6 +9,7 @@ import AuthRoutes from "./route/Authroutes.js";
 import "./config/passportConfig.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/logger.js";
+import { redis } from "./utils/radis.js";
 
 dotenv.config();
 
@@ -137,13 +138,12 @@ app.use(notFoundHandler);
 
 // Centralized error handler
 app.use(errorHandler);
-
-
 // SERVER STARTUP
-
-
 const startServer = async () => {
     try {
+
+        // redis test connection
+        const redisTest = await redis.ping();
         // Validate critical environment variables
         const requiredEnvVars = [
             'MONGODB_URI',
