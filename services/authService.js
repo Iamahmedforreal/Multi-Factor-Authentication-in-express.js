@@ -257,12 +257,14 @@ class AuthService {
 
         user.password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
         await user.save();
+        const revokeAllSessionsCount = await sessionService.revokeAllSessions(user._id, req);
 
-        await AuditLogFunction(user._id, "PASSWORD_CHANGED", req);
+        AuditLogFunction(user._id, "PASSWORD_CHANGED", req);
 
         return {
             success: true,
-            message: "Password changed successfully"
+            message: "Password changed successfully",
+            sessionsRevoked: revokeAllSessionsCount
         };
     }
 }
