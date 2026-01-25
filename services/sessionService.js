@@ -82,15 +82,12 @@ class SessionService {
      * @param {string} fingerPrint - Device fingerprint
      * @returns {Promise<boolean>} - True if new device
      */
-    async isNewDevice(userId, fingerPrint) {
-        const existingDevice = await RefreshTokenModel.findOne({
-            userId: new mongoose.Types.ObjectId(userId),
-            fingerPrint: fingerPrint
-        });
-
-        return !existingDevice;
-    }
-
+       async isNewDevice(userId, fingerPrint) {
+        if (!fingerPrint) return true;
+        const isMember = await redis.sismember(`known_devices:${userId}`, fingerPrint);
+        return !isMember
+       }
+       
     /**
      * Get all active sessions for a user
      * @param {string} userId - User ID
