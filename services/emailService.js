@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { emailQueue } from "../config/queue.js";
 
 dotenv.config();
 
@@ -17,12 +18,25 @@ class EmailService {
     }
 
     /**
-     * Send email verification link
+     * Add email verification job to queue
+     * @param {string} email - Recipient email
+     * @param {string} token - Verification token
+     */
+    async sendEmailVerification(email, token) {
+        await emailQueue.add('VERIFY_EMAIL', {
+            type: 'VERIFY_EMAIL',
+            email,
+            data: { token }
+        });
+    }
+
+    /**
+     * Internal method to send email verification link (called by worker)
      * @param {string} email - Recipient email
      * @param {string} token - Verification token
      * @returns {Promise<void>}
      */
-    async sendEmailVerification(email, token) {
+    async _sendEmailVerification(email, token) {
         const link = `${BASE_URL}/api/auth/verify-email?token=${token}`;
 
         await this.transporter.sendMail({
@@ -49,12 +63,25 @@ class EmailService {
     }
 
     /**
-     * Send password reset email
+     * Add password reset job to queue
+     * @param {string} email - Recipient email
+     * @param {string} token - Reset token
+     */
+    async sendPasswordResetEmail(email, token) {
+        await emailQueue.add('RESET_PASSWORD', {
+            type: 'RESET_PASSWORD',
+            email,
+            data: { token }
+        });
+    }
+
+    /**
+     * Internal method to send password reset email (called by worker)
      * @param {string} email - Recipient email
      * @param {string} token - Reset token
      * @returns {Promise<void>}
      */
-    async sendPasswordResetEmail(email, token) {
+    async _sendPasswordResetEmail(email, token) {
         const link = `${BASE_URL}/api/auth/reset-password?token=${token}`;
 
         await this.transporter.sendMail({
@@ -84,13 +111,28 @@ class EmailService {
     }
 
     /**
-     * Send security warning email (new device, suspicious activity)
+     * Add security warning job to queue
+     * @param {string} email - Recipient email
+     * @param {string} action - Action type
+     * @param {Object} meta - Metadata (ip, device, etc.)
+     */
+    async sendSecurityWarning(email, action, meta = {}) {
+        await emailQueue.add('SECURITY_WARNING', {
+            type: 'SECURITY_WARNING',
+            email,
+            action,
+            meta
+        });
+    }
+
+    /**
+     * Internal method to send security warning email (called by worker)
      * @param {string} email - Recipient email
      * @param {string} action - Action type
      * @param {Object} meta - Metadata (ip, device, etc.)
      * @returns {Promise<void>}
      */
-    async sendSecurityWarning(email, action, meta = {}) {
+    async _sendSecurityWarning(email, action, meta = {}) {
         const ip = meta?.ip || 'unknown';
         const deviceInfo = meta?.device || 'unknown';
 
@@ -122,13 +164,28 @@ class EmailService {
     }
 
     /**
-     * Send new device login notification
+     * Add new device login job to queue
+     * @param {string} email - Recipient email
+     * @param {string} action - Action type
+     * @param {Object} meta - Metadata
+     */
+    async sendNewDeviceLoginAlert(email, action, meta = {}) {
+        await emailQueue.add('DEVICE_LOGIN', {
+            type: 'DEVICE_LOGIN',
+            email,
+            action,
+            meta
+        });
+    }
+
+    /**
+     * Internal method to send new device login notification (called by worker)
      * @param {string} email - Recipient email
      * @param {string} action - Action type
      * @param {Object} meta - Metadata
      * @returns {Promise<void>}
      */
-    async sendNewDeviceLoginAlert(email, action, meta = {}) {
+    async _sendNewDeviceLoginAlert(email, action, meta = {}) {
         const ip = meta?.ip || 'unknown';
         const deviceInfo = meta?.device || 'unknown';
 

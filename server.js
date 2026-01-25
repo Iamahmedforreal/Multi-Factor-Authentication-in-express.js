@@ -10,6 +10,7 @@ import "./config/passportConfig.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/logger.js";
 import { redis } from "./utils/radis.js";
+import emailWorker from "./workers/emailWorker.js";
 
 dotenv.config();
 
@@ -169,7 +170,7 @@ const startServer = async () => {
         const server = app.listen(PORT, '0.0.0.0', () => {
             console.log(`✓ Server running on http://localhost:${PORT}`);
             console.log(`✓ Environment: ${NODE_ENV}`);
-            
+
         });
 
         // Graceful shutdown handlers
@@ -182,6 +183,11 @@ const startServer = async () => {
                 try {
                     await dbConnection.close();
                     console.log('✓ Database connection closed');
+
+                    // Close BullMQ worker
+                    await emailWorker.close();
+                    console.log('✓ Email worker closed');
+
                     process.exit(0);
                 } catch (error) {
                     console.error('Error during shutdown:', error);
