@@ -117,17 +117,11 @@ class SessionService {
      * @param {Object} req - Request object
      * @returns {Promise<boolean>} - True if revoked
      */
-    async revokeSession(userId, tokenId, req) {
-        const result = await RefreshTokenModel.deleteOne({
-            _id: tokenId,
-            userId
-        });
-
-        if (result.deletedCount > 0) {
-            await AuditLogFunction(userId, "SESSION_REVOKED", req, { tokenId });
-            return true;
+    async revokeSession(userId, jti, req) {
+        const success = await this.deleteToken(userId, tokenId);
+        if(success){
+            AuditLogFunction(userId , "SESSION_REVOKE" , req , {jti})
         }
-        return false;
     }
 
     /**
@@ -185,8 +179,15 @@ class SessionService {
      */
     async deleteToken(userId , jti) {
         const tokenKey = `refresh:${userId}:${jti}`;
-        const result = await redis.del(tokenKey);
-        return result > 0;
+        const sessionKey  = `session:${userId}`;
+
+        const pipeline = redis.pipeline();
+        pipeline.del(tokenKey);
+        pipeline.srem(sessionKey, jti);
+        const results = await pipeline.exec();
+        // results[0][1] means del
+        return results[0][1] > 0;
+    
     }
 
     /**
