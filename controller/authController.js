@@ -43,13 +43,20 @@ export const login = asyncHandler(async (req, res) => {
     // Manage active sessions (enforce max limit)
     await sessionService.manageActiveSessions(user._id);
 
-    // Check if MFA is required
-    if (validation.requiresMfa) {
+    // Generate device fingerprint to check if this is a new device
+    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
+    const isNewDevice = await sessionService.isNewDevice(user._id, fingerPrint);
+
+    // Check if MFA is: MFA enabled AND new device
+    const requiresMfa = user.MfaActive && isNewDevice;
+
+    if (requiresMfa) {
         const tempToken = tokenService.generateTemporaryToken(user);
         return res.status(200).json({
             success: true,
-            message: "MFA verification required",
-            tempToken
+            message: "MFA verification required ",
+            tempToken,
+            isNewDevice: true
         });
     }
 
@@ -57,10 +64,7 @@ export const login = asyncHandler(async (req, res) => {
     const accessToken = tokenService.generateAccessToken(user);
     const refreshToken = tokenService.generateRefreshToken(user);
 
-    // Check for new device
-    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
-    const isNewDevice = await sessionService.isNewDevice(user._id, fingerPrint);
-
+    // Log new device login (even if no MFA required)
     if (isNewDevice) {
         EventEmitter.emit("NEW_LOGIN", {
             email: user.email,
@@ -82,8 +86,9 @@ export const login = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: "Login successful",
-        accessToken
+        message: isNewDevice ? "Login successful from new device" : "Login successful",
+        accessToken,
+        isNewDevice
     });
 });
 

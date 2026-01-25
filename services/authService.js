@@ -48,10 +48,8 @@ class AuthService {
         // Audit log
         AuditLogFunction(newUser._id, "USER_REGISTERED", req, { email: newUser.email });
 
-        // Send verification email (non-blocking)
-        emailService.sendEmailVerification(newUser.email, token).catch((err) => {
-            console.error("Error sending verification email:", err);
-        });
+        // Send verification email 
+        emailService.sendEmailVerification(newUser.email, token);
 
         return {
             success: true,
@@ -153,8 +151,7 @@ class AuthService {
 
         return {
             success: true,
-            user,
-            requiresMfa: user.MfaActive
+            user
         };
     }
 
