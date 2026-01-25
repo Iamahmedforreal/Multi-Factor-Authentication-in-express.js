@@ -149,7 +149,7 @@ class AuthService {
         }
 
         // Record successful login attempt
-        await recodLastLoginAttempt(user._id, ip, user.email, true);
+        recodLastLoginAttempt(user._id, ip, user.email, true);
 
         return {
             success: true,
@@ -176,8 +176,11 @@ class AuthService {
             user.resetPasswordTokenExpires = Date.now() + 1000 * 60 * 15; // 15 minutes
             await user.save();
 
-            await AuditLogFunction(user._id, "PASSWORD_RESET_REQUESTED", req);
+            AuditLogFunction(user._id, "PASSWORD_RESET_REQUESTED", req);
             await emailService.sendPasswordResetEmail(user.email, token);
+        }
+        else{
+            AuditLogFunction(null, "PASSWORD_RESET_REQUESTED_UNKNOWN_EMAIL", req, { email });
         }
 
         // Generic response to prevent enumeration

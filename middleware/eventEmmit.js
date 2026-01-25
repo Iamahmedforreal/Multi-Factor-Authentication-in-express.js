@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { handleError } from "../utils/helper.js";
+import { errorHandler } from "../middleware/errorHandler.js"; 
 import { sendWarningEmail , sendLoginAlertEmail } from "../utils/sendEmail.js";
 
 const eventEmitter = new EventEmitter();
@@ -9,7 +9,8 @@ eventEmitter.on('limit_hit', async (data) => {
         // expect data.meta = { ip, device }
         await sendWarningEmail(data.email, data.action, data.meta);
     }catch(err){
-        handleError(err);
+        errorHandler(err);
+        
     }
 });
 eventEmitter.on('NEW_LOGIN', async (data) => {
@@ -17,7 +18,7 @@ eventEmitter.on('NEW_LOGIN', async (data) => {
         await sendLoginAlertEmail(data.email, data.action, data.meta);
 
     }catch(err){
-        handleError(err);
+        errorHandler(err);
     }
 });
 

@@ -9,7 +9,7 @@ const MAX_LOGIN_ATTEMPT = 5;
 
 /**
  * Extract IP address from request
- * Handles proxies and load balancers
+ * 
  */
 export const getIp = (req) => {
     return (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || 'unknown';
@@ -112,37 +112,3 @@ export const buildKey = (action, ip, email) => {
     return `${action}:${ip}:${email}`;
 };
 
-// ============================================
-// DEPRECATED FUNCTIONS (kept for backwards compatibility)
-// These should not be used in new code - use services instead
-
-
-/**
- * @deprecated Use sessionService.saveRefreshToken() instead
- */
-export const SaveRefreshToke = async (...args) => {
-    console.warn('SaveRefreshToke is deprecated. Use sessionService.saveRefreshToken() instead');
-    const { default: sessionService } = await import('../services/sessionService.js');
-    return sessionService.saveRefreshToken(...args);
-};
-
-/**
- * @deprecated Use sessionService.isNewDevice() instead
- */
-export const newDevice = async (...args) => {
-    console.warn('newDevice is deprecated. Use sessionService.isNewDevice() instead');
-    const { default: sessionService } = await import('../services/sessionService.js');
-    return sessionService.isNewDevice(...args);
-};
-
-/**
- * @deprecated Use errorHandler middleware instead
- */
-export const handleError = (res, err, StatusCode = 500) => {
-    console.warn('handleError is deprecated. Use errorHandler middleware instead');
-    console.error("error:", err);
-    return res.status(StatusCode).json({
-        success: false,
-        error: "An error occurred. Please try again later."
-    });
-};

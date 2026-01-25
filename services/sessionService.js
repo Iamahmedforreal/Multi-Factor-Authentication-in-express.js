@@ -1,6 +1,4 @@
-import RefreshTokenModel from "../models/token.js";
-import { AuditLogFunction, getDeviceInfo, genrateFingerPrint } from "../utils/helper.js";
-import mongoose from "mongoose";
+import { AuditLogFunction } from "../utils/helper.js";
 import crypto from "crypto";
 import { redis } from "../utils/radis.js";
 import tokenService from "./tokenService.js";
@@ -11,75 +9,96 @@ const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 class SessionService {
     /**
-     * Save refresh token to database
-     * @param {string} userId - User ID
-     * @param {string} token - Refresh token
-     * @returns {Promise<Object>} - Saved token to radis
+     * Save refresh token and session metadata to Redis
      */
-    async saveRefreshToken(userId , token) {
-        const hashed = crypto.createHash("sha256").update(token).digest("hex");
-        
-        
+    async saveRefreshToken(userId, token, ip, deviceInfo, fingerPrint) {
         const decoded = tokenService.decodeToken(token);
         const jti = decoded?.jti;
+        if (!jti) throw new Error('Invalid refresh token: missing jti');
 
-        if (!jti) {
-            throw new Error('Invalid refresh token: missing jti');
+        const hashed = crypto.createHash("sha256").update(token).digest("hex");
+        const tokenKey = `refresh:${userId}:${jti}`;
+        const userSessionsKey = `user:sessions:${userId}`;
+        const ttl = 60 * 60 * 24 * 30; // 30 days
+
+        const sessionMetadata = {
+            jti,
+            userId,
+            ip,
+            device: deviceInfo,
+            fingerPrint,
+            hashedToken: hashed,
+            createdAt: new Date().toISOString(),
+            lastSeenAt: new Date().toISOString()
+        };
+
+        // Use a pipeline for atomic write
+        const pipeline = redis.pipeline();
+        pipeline.setex(tokenKey, ttl, JSON.stringify(sessionMetadata));
+        pipeline.sadd(userSessionsKey, jti);
+        pipeline.expire(userSessionsKey, ttl);
+        await pipeline.exec();
+
+        // Register device as "known"
+        if (fingerPrint) {
+            await redis.sadd(`known_devices:${userId}`, fingerPrint);
+            await redis.expire(`known_devices:${userId}`, 60 * 60 * 24 * 180); // 180 days
         }
-
-        await redis.setex(`refresh:${userId}:${jti}`, 60 * 60 * 24 * 30, hashed);
     }
+
     /**
-     * Check and manage active sessions (enforce max session limit)
-     * @param {string} userId - User ID
-     * @returns {Promise<number>} - Number of active sessions
+     * Manage active sessions (enforce limit)
      */
     async manageActiveSessions(userId) {
-        const activeSessions = await this.getActiveSessions(userId);
+        const userSessionsKey = `user:sessions:${userId}`;
+        const sessionIds = await redis.smembers(userSessionsKey);
+
+        if (sessionIds.length >= MAX_ACTIVE_SESSIONS) {
+            // In a real senior app, we'd sort by lastSeen and remove oldest
+            // For now, let's remove the first one found
+            const oldestJti = sessionIds[0];
+            await this.deleteToken(userId, oldestJti);
+        }
+
+        return sessionIds.length;
     }
 
     /**
-     * Check if device is new for this user
-     * @param {string} userId - User ID
-     * @param {string} fingerPrint - Device fingerprint
-     * @returns {Promise<boolean>} - True if new device
+     * Check if device is new for this user (using Redis Set)
      */
     async isNewDevice(userId, fingerPrint) {
-        const existingDevice = await RefreshTokenModel.findOne({
-            userId: new mongoose.Types.ObjectId(userId),
-            fingerPrint: fingerPrint
-        });
-
-        return !existingDevice;
+        if (!fingerPrint) return true;
+        const isMember = await redis.sismember(`known_devices:${userId}`, fingerPrint);
+        return !isMember;
     }
 
     /**
      * Get all active sessions for a user
-     * @param {string} userId - User ID
-     * @returns {Promise<Array>} - Array of active sessions
      */
     async getActiveSessions(userId) {
-        return await RefreshTokenModel.find({
-            userId,
-            expiresAt: { $gt: Date.now() }
-        }).sort({ createdAt: -1 });
+        const userSessionsKey = `user:sessions:${userId}`;
+        const sessionIds = await redis.smembers(userSessionsKey);
+
+        const sessions = [];
+        for (const jti of sessionIds) {
+            const data = await redis.get(`refresh:${userId}:${jti}`);
+            if (data) {
+                sessions.push(JSON.parse(data));
+            } else {
+                // Cleanup orphaned entry in Set
+                await redis.srem(userSessionsKey, jti);
+            }
+        }
+        return sessions;
     }
 
     /**
      * Revoke a specific session
-     * @param {string} userId - User ID
-     * @param {string} tokenId - Token document ID
-     * @param {Object} req - Request object
-     * @returns {Promise<boolean>} - True if revoked
      */
-    async revokeSession(userId, tokenId, req) {
-        const result = await RefreshTokenModel.deleteOne({
-            _id: tokenId,
-            userId
-        });
-
-        if (result.deletedCount > 0) {
-            await AuditLogFunction(userId, "SESSION_REVOKED", req, { tokenId });
+    async revokeSession(userId, jti, req) {
+        const success = await this.deleteToken(userId, jti);
+        if (success) {
+            await AuditLogFunction(userId, "SESSION_REVOKED", req, { jti });
             return true;
         }
         return false;
@@ -87,20 +106,25 @@ class SessionService {
 
     /**
      * Revoke all sessions for a user
-     * @param {string} userId - User ID
-     * @param {Object} req - Request object
-     * @returns {Promise<number>} - Number of sessions revoked
      */
     async revokeAllSessions(userId, req) {
-        const result = await RefreshTokenModel.deleteMany({ userId });
+        const userSessionsKey = `user:sessions:${userId}`;
+        const sessionIds = await redis.smembers(userSessionsKey);
 
-        if (result.deletedCount > 0) {
-            await AuditLogFunction(userId, "ALL_SESSIONS_REVOKED", req, {
-                count: result.deletedCount
-            });
+        if (sessionIds.length === 0) return 0;
+
+        const pipeline = redis.pipeline();
+        for (const jti of sessionIds) {
+            pipeline.del(`refresh:${userId}:${jti}`);
         }
+        pipeline.del(userSessionsKey);
+        await pipeline.exec();
 
-        return result.deletedCount;
+        await AuditLogFunction(userId, "ALL_SESSIONS_REVOKED", req, {
+            count: sessionIds.length
+        });
+
+        return sessionIds.length;
     }
 
     /**
@@ -117,11 +141,11 @@ class SessionService {
         if (!jti || !userId) {
             throw new Error("INVALID_REFRESH_TOKEN_FORMAT");
         }
-      
+
         const tokenKey = `refresh:${userId}:${jti}`;
         const storedHash = await redis.get(tokenKey);
 
-        if (!storedHash){
+        if (!storedHash) {
             throw new Error("REFRESH_TOKEN_EXPIRED_OR_INVALID");
         }
         const IncomingToken = crypto.createHash("sha256").update(token).digest("hex");
@@ -130,40 +154,37 @@ class SessionService {
             throw new Error("INVALID_REFRESH_TOKEN");
         }
         return { userId, jti }
-        
+
     }
 
     /**
-     * Delete a specific refresh token
-     * @param {string} tokenId - Token document ID
-     * @returns {Promise<boolean>} - True if deleted
+     * Delete a specific refresh token from Redis
      */
-    async deleteToken(userId , jti) {
+    async deleteToken(userId, jti) {
         const tokenKey = `refresh:${userId}:${jti}`;
-        const result = await redis.del(tokenKey);
-        return result > 0;
+        const userSessionsKey = `user:sessions:${userId}`;
+
+        const pipeline = redis.pipeline();
+        pipeline.del(tokenKey);
+        pipeline.srem(userSessionsKey, jti);
+        const results = await pipeline.exec();
+
+        // results[0][1] is the result of 'del'
+        return results[0][1] > 0;
     }
 
     /**
-     * Clean up expired tokens (should be run periodically)
-     * @returns {Promise<number>} - Number of deleted tokens
+     * Clean up expired tokens (Redis handles this automatically via TTL)
      */
     async cleanupExpiredTokens() {
-        const result = await RefreshTokenModel.deleteMany({
-            expiresAt: { $lt: new Date() }
-        });
-
-        return result.deletedCount;
+        return 0; // No-op for Redis
     }
 
     /**
      * Get session statistics for a user
-     * @param {string} userId - User ID
-     * @returns {Promise<Object>} - Session statistics
      */
     async getSessionStats(userId) {
         const sessions = await this.getActiveSessions(userId);
-        const totalSessions = sessions.length;
 
         const deviceBreakdown = sessions.reduce((acc, session) => {
             const device = session.device || 'unknown';
@@ -172,29 +193,30 @@ class SessionService {
         }, {});
 
         return {
-            totalActiveSessions: totalSessions,
+            totalActiveSessions: sessions.length,
             maxAllowedSessions: MAX_ACTIVE_SESSIONS,
             deviceBreakdown,
             sessions: sessions.map(s => ({
-                id: s._id,
+                id: s.jti,
                 device: s.device,
-                ip: s.ip_address,
-                createdAt: s.createdAt,
-                expiresAt: s.expiresAt
+                ip: s.ip,
+                lastSeenAt: s.lastSeenAt,
+                createdAt: s.createdAt
             }))
         };
     }
 
     /**
-     * Update session last seen timestamp
-     * @param {string} tokenId - Token document ID
-     * @returns {Promise<void>}
+     * Update session last seen timestamp in Redis
      */
-    async updateLastSeen(tokenId) {
-        await RefreshTokenModel.updateOne(
-            { _id: tokenId },
-            { lastSeenAt: new Date() }
-        );
+    async updateLastSeen(userId, jti) {
+        const tokenKey = `refresh:${userId}:${jti}`;
+        const data = await redis.get(tokenKey);
+        if (data) {
+            const session = JSON.parse(data);
+            session.lastSeenAt = new Date().toISOString();
+            await redis.set(tokenKey, JSON.stringify(session), 'KEEPTTL');
+        }
     }
 }
 

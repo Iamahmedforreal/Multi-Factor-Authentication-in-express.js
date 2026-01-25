@@ -101,7 +101,7 @@ export const logout = asyncHandler(async (req, res) => {
     }
 
     const tokenDoc = await sessionService.validateRefreshToken(refreshToken);
-    await sessionService.deleteToken(tokenDoc._id);
+    await sessionService.deleteToken(user._id, tokenDoc.jti);
 
     res.clearCookie("refreshtoken", {
         httpOnly: true,
