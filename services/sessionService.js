@@ -131,15 +131,23 @@ class SessionService {
      * @returns {Promise<number>} - Number of sessions revoked
      */
     async revokeAllSessions(userId, req) {
-        const result = await RefreshTokenModel.deleteMany({ userId });
+        const userSessionsKey = `user:sessions:${userId}`;
+        const sessionIds = await redis.smembers(userSessionsKey);
 
-        if (result.deletedCount > 0) {
-            await AuditLogFunction(userId, "ALL_SESSIONS_REVOKED", req, {
-                count: result.deletedCount
-            });
+        if (sessionIds.length === 0) return 0;
+
+        const pipeline = redis.pipeline();
+        for (const jti of sessionIds) {
+            pipeline.del(`refresh:${userId}:${jti}`);
         }
+        pipeline.del(userSessionsKey);
+        await pipeline.exec();
 
-        return result.deletedCount;
+        await AuditLogFunction(userId, "ALL_SESSIONS_REVOKED", req, {
+            count: sessionIds.length
+        });
+
+        return sessionIds.length;
     }
 
     /**
