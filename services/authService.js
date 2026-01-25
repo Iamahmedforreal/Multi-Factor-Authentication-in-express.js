@@ -119,7 +119,7 @@ class AuthService {
             console.error("Error sending email:", err);
         });
 
-        await AuditLogFunction(user._id, "EMAIL_VERIFICATION_SENT", req);
+         AuditLogFunction(user._id, "EMAIL_VERIFICATION_SENT", req);
 
         return {
             success: true,
@@ -220,11 +220,14 @@ class AuthService {
         user.resetPasswordTokenExpires = undefined;
         await user.save();
 
-        await AuditLogFunction(user._id, "PASSWORD_RESET_COMPLETED", req);
+        const revokeAllSessionsCount = await sessionService.revokeAllSessions(user._id, req);
+
+        AuditLogFunction(user._id, "PASSWORD_RESET_COMPLETED", req);
 
         return {
             success: true,
-            message: "Password reset successfully"
+            message: "Password reset successfully",
+            sessionsRevoked: revokeAllSessionsCount
         };
     }
 

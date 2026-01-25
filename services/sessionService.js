@@ -198,58 +198,5 @@ class SessionService {
     
     }
 
-    /**
-     * Clean up expired tokens (should be run periodically)
-     * @returns {Promise<number>} - Number of deleted tokens
-     */
-    async cleanupExpiredTokens() {
-        const result = await RefreshTokenModel.deleteMany({
-            expiresAt: { $lt: new Date() }
-        });
-
-        return result.deletedCount;
-    }
-
-    /**
-     * Get session statistics for a user
-     * @param {string} userId - User ID
-     * @returns {Promise<Object>} - Session statistics
-     */
-    async getSessionStats(userId) {
-        const sessions = await this.getActiveSessions(userId);
-        const totalSessions = sessions.length;
-
-        const deviceBreakdown = sessions.reduce((acc, session) => {
-            const device = session.device || 'unknown';
-            acc[device] = (acc[device] || 0) + 1;
-            return acc;
-        }, {});
-
-        return {
-            totalActiveSessions: totalSessions,
-            maxAllowedSessions: MAX_ACTIVE_SESSIONS,
-            deviceBreakdown,
-            sessions: sessions.map(s => ({
-                id: s._id,
-                device: s.device,
-                ip: s.ip_address,
-                createdAt: s.createdAt,
-                expiresAt: s.expiresAt
-            }))
-        };
-    }
-
-    /**
-     * Update session last seen timestamp
-     * @param {string} tokenId - Token document ID
-     * @returns {Promise<void>}
-     */
-    async updateLastSeen(tokenId) {
-        await RefreshTokenModel.updateOne(
-            { _id: tokenId },
-            { lastSeenAt: new Date() }
-        );
-    }
 }
-
 export default new SessionService();
