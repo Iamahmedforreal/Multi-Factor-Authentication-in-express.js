@@ -94,10 +94,20 @@ class SessionService {
      * @returns {Promise<Array>} - Array of active sessions
      */
     async getActiveSessions(userId) {
-        return await RefreshTokenModel.find({
-            userId,
-            expiresAt: { $gt: Date.now() }
-        }).sort({ createdAt: -1 });
+     const userSessionsKey = `user:sessions:${userId}`;
+     const sessionIds = await redis.smembers(userSessionsKey);
+
+     const sessions = [];
+     for (const jti of sessionIds) {
+        const data = await redis.get(`refresh:${userId}:${jti}`);
+        if (data) {
+            sessions.push(JSON.parse(data));
+        }else{
+            await redis.srem(userSessionsKey, jti);
+        }
+
+     }
+        return sessions;
     }
 
     /**
