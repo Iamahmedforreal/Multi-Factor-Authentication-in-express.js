@@ -12,7 +12,8 @@ A production-ready, highly secure authentication system built with Node.js and E
 ## Key Features
 
 **Security & Authentication**
-*   **Two-Factor Authentication**: TIme-based One-Time Password (TOTP) implementation with QR code generation.
+*   **Two-Factor Authentication**: Time-based One-Time Password (TOTP) implementation with QR code generation.
+*   **Adaptive MFA**: Intelligent login flow that skips 2FA for known/trusted devices to improve user experience.
 *   **Redis Session Management**: Secure, high-performance session handling backed by Redis.
 *   **Device Fingerprinting**: Tracks user devices and alerts on suspicious or new device logins.
 *   **Secure Password Resets**: Time-limited, token-based password reset flows.
@@ -157,11 +158,13 @@ The server will initialize on `http://localhost:7000`.
 3.  **If 2FA is Disabled**: Returns `accessToken` and sets `refreshToken` cookie.
 4.  **Device Check**: If the device is unrecognized, a "New Device Alert" email is queued.
 
-### 2FA Login
+### 2FA Login (Adaptive)
 1.  User submits credentials via `POST /login`.
-2.  Server detects 2FA is enabled and returns a temporary `tempToken`.
-3.  User submits TOTP code `POST /2fa/verify` using the temporary token.
-4.  Server validates code and returns `accessToken` and sets `refreshToken` cookie.
+2.  Server checks if 2FA is enabled **AND** if the device is unrecognized.
+3.  **Known Device**: Verification is **SKIPPED**; user logged in immediately.
+4.  **New Device**: Server returns a temporary `tempToken`.
+5.  User submits TOTP code `POST /2fa/verify`.
+6.  Server validates code, returns tokens, and **trusts the device** for future logins.
 
 ### Asynchronous Emailing
 1.  User actions (e.g., Register, Reset Password) trigger the `EmailService`.
