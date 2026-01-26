@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import redis from './redis.js';
+import { redis } from '../utils/radis.js';
 
 /**
  * Configuration for BullMQ
