@@ -26,7 +26,6 @@ export const getDeviceInfo = (req) => {
  * Generate device fingerprint hash
  */
 export const genrateFingerPrint = (userId, deviceInfo) => {
-
     const fingerPrint = `${userId}|${deviceInfo}`;
     return crypto.createHash('sha256').update(fingerPrint).digest('hex');
 };
@@ -74,17 +73,19 @@ export const recodLastLoginAttempt = async (userId, ip, email, successfull) => {
  * Returns: { locked: boolean, minutesRemaining?: number }
  */
 export const checkAccountLogout = async (email, ip) => {
-    // Find recent failed login attempts by email or IP
+    // Find recent login attempts by email or IP
     const failedLoginAttempts = await loginAttempt.find({
         $or: [{ email }, { ip }],
-        timestamp: { $gte: new Date(Date.now() - LOCK_OUT_DURATION) },
-        successfull: false
+           timestamp: { $gte: new Date(Date.now() - LOCK_OUT_DURATION) },
+            successfull: false
     });
+       
+ 
 
     // Check if exceeded max attempts
     if (failedLoginAttempts.length >= MAX_LOGIN_ATTEMPT) {
         // Get most recent attempt
-        const recentAttempt = recentLoginAttempts.sort((a, b) => b.timestamp - a.timestamp)[0];
+        const recentAttempt = failedLoginAttempts.sort((a, b) => b.timestamp - a.timestamp)[0];
 
         // Calculate remaining lockout time
         const timeRemaining = Math.ceil((LOCK_OUT_DURATION - (Date.now() - recentAttempt.timestamp)) / 60000);

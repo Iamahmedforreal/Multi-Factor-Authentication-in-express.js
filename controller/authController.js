@@ -33,30 +33,36 @@ export const resendEmailVerification = asyncHandler(async (req, res) => {
 
 
 export const login = asyncHandler(async (req, res) => {
+    
     const user = req.user; // From passport middleware
     const ip = getIp(req);
     const deviceInfo = getDeviceInfo(req);
 
+
     // Validate login (email verification, account lockout)
+    
     const validation = await authService.validateLogin(user, ip);
+
 
     // Generate device fingerprint
     const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
+    
 
     // Parallelize session management and device check
     const [_, isNewDevice] = await Promise.all([
         sessionService.manageActiveSessions(user._id),
         sessionService.isNewDevice(user._id, fingerPrint)
     ]);
+    
 
-    // Check if MFA is: MFA enabled AND new device
+    // Adaptive MFA: Only require MFA if enabled AND it's a new device
     const requiresMfa = user.MfaActive && isNewDevice;
 
     if (requiresMfa) {
         const tempToken = tokenService.generateTemporaryToken(user);
         return res.status(200).json({
             success: true,
-            message: "MFA verification required ",
+            message: "MFA verification required",
             tempToken,
             isNewDevice: true
         });
@@ -66,17 +72,21 @@ export const login = asyncHandler(async (req, res) => {
     const accessToken = tokenService.generateAccessToken(user);
     const refreshToken = tokenService.generateRefreshToken(user);
 
-    // Log new device login (even if no MFA required)
+    // If new device but no MFA (or MFA skipped), still alert user
     if (isNewDevice) {
         EventEmitter.emit("NEW_LOGIN", {
             email: user.email,
             action: "NEW_LOGIN",
             meta: { ip, device: deviceInfo }
         });
+        
     }
 
     // Save session
     await sessionService.saveRefreshToken(user._id, refreshToken, ip, deviceInfo, fingerPrint);
+
+    // Update last login
+    await userService.updateLastLogin(user._id);
 
     // Set secure cookie
     res.cookie("refreshtoken", refreshToken, {
@@ -85,13 +95,15 @@ export const login = asyncHandler(async (req, res) => {
         sameSite: "strict",
         maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
     });
+    
 
+    
     res.status(200).json({
         success: true,
-        message: isNewDevice ? "Login successful from new device" : "Login successful",
-        accessToken,
-        isNewDevice
+        message: "Login successful",
+        accessToken
     });
+  
 });
 
 export const logout = asyncHandler(async (req, res) => {
@@ -105,7 +117,7 @@ export const logout = asyncHandler(async (req, res) => {
     }
 
     const tokenDoc = await sessionService.validateRefreshToken(refreshToken);
-    await sessionService.deleteToken(user._id, tokenDoc.jti);
+    await sessionService.deleteToken(tokenDoc._id);
 
     res.clearCookie("refreshtoken", {
         httpOnly: true,

@@ -6,7 +6,7 @@ import { AuditLogFunction, recodLastLoginAttempt, checkAccountLogout } from "../
 import emailService from "./emailService.js";
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24; // 24 hours
-const BCRYPT_ROUNDS = 12; 
+const BCRYPT_ROUNDS = 12;
 
 class AuthService {
     /**
@@ -117,7 +117,7 @@ class AuthService {
             console.error("Error sending email:", err);
         });
 
-         AuditLogFunction(user._id, "EMAIL_VERIFICATION_SENT", req);
+        AuditLogFunction(user._id, "EMAIL_VERIFICATION_SENT", req);
 
         return {
             success: true,
@@ -136,13 +136,13 @@ class AuthService {
         const lockedOut = await checkAccountLogout(user.email, ip);
 
         if (lockedOut.locked) {
-            await recodLastLoginAttempt(user._id, ip, user.email, false);
+            recodLastLoginAttempt(user._id, ip, user.email, false);
             throw new Error(`ACCOUNT_LOCKED:${lockedOut.minutesRemaining}`);
         }
 
         // Check email verification
         if (!user.emailVerified) {
-            await recodLastLoginAttempt(user._id, ip, user.email, false);
+             recodLastLoginAttempt(user._id, ip, user.email, false);
             throw new Error("EMAIL_NOT_VERIFIED");
         }
 
@@ -176,7 +176,7 @@ class AuthService {
             AuditLogFunction(user._id, "PASSWORD_RESET_REQUESTED", req);
             await emailService.sendPasswordResetEmail(user.email, token);
         }
-        else{
+        else {
             AuditLogFunction(null, "PASSWORD_RESET_REQUESTED_UNKNOWN_EMAIL", req, { email });
         }
 
