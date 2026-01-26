@@ -150,7 +150,7 @@ const startServer = async () => {
             'MONGODB_URI',
             'JWT_SECRET',
             'JWT_REFRESH_SECRET',
-            'JWT_TEMPOROY',
+            'JWT_TEMPORARY_SECRET',
             'EMAIL_USER',
             'EMAIL_PASS',
             'BASE_URL'

@@ -1,5 +1,5 @@
 import RefreshTokenModel from "../models/token.js";
-import { AuditLogFunction, getDeviceInfo, genrateFingerPrint } from "../utils/helper.js";
+import { AuditLogFunction, generateFingerPrint } from "../utils/helper.js";
 import mongoose from "mongoose";
 import crypto from "crypto";
 import { redis } from "../utils/radis.js";

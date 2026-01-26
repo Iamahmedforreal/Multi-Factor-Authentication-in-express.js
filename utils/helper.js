@@ -25,7 +25,7 @@ export const getDeviceInfo = (req) => {
 /**
  * Generate device fingerprint hash
  */
-export const genrateFingerPrint = (userId, deviceInfo) => {
+export  const generateFingerPrint = (userId, deviceInfo) => {
     const fingerPrint = `${userId}|${deviceInfo}`;
     return crypto.createHash('sha256').update(fingerPrint).digest('hex');
 };
@@ -58,7 +58,7 @@ export const AuditLogFunction = async (userId, action, req, metadata = {}) => {
 /**
  * Record login attempt (success or failure)
  */
-export const recodLastLoginAttempt = async (userId, ip, email, successfull) => {
+export const recordLastLoginAttempt = async (userId, ip, email, successfull) => {
     await loginAttempt.create({
         userId,
         email: email.toLowerCase(),
@@ -76,11 +76,11 @@ export const checkAccountLogout = async (email, ip) => {
     // Find recent login attempts by email or IP
     const failedLoginAttempts = await loginAttempt.find({
         $or: [{ email }, { ip }],
-           timestamp: { $gte: new Date(Date.now() - LOCK_OUT_DURATION) },
-            successfull: false
+        timestamp: { $gte: new Date(Date.now() - LOCK_OUT_DURATION) },
+        successfull: false
     });
-       
- 
+
+
 
     // Check if exceeded max attempts
     if (failedLoginAttempts.length >= MAX_LOGIN_ATTEMPT) {

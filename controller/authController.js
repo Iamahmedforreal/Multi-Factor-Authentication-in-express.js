@@ -2,7 +2,7 @@
 import passport from "passport";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { authService, mfaService, sessionService, tokenService, userService, emailService } from "../services/index.js";
-import { getDeviceInfo, genrateFingerPrint, getIp } from "../utils/helper.js";
+import { getDeviceInfo, generateFingerPrint, getIp } from "../utils/helper.js";
 import EventEmitter from "../middleware/eventEmmit.js";
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
@@ -33,27 +33,27 @@ export const resendEmailVerification = asyncHandler(async (req, res) => {
 
 
 export const login = asyncHandler(async (req, res) => {
-    
+
     const user = req.user; // From passport middleware
     const ip = getIp(req);
     const deviceInfo = getDeviceInfo(req);
 
 
     // Validate login (email verification, account lockout)
-    
+
     const validation = await authService.validateLogin(user, ip);
 
 
     // Generate device fingerprint
-    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
-    
+    const fingerPrint = generateFingerPrint(user._id, deviceInfo);
+
 
     // Parallelize session management and device check
     const [_, isNewDevice] = await Promise.all([
         sessionService.manageActiveSessions(user._id),
         sessionService.isNewDevice(user._id, fingerPrint)
     ]);
-    
+
 
     // Adaptive MFA: Only require MFA if enabled AND it's a new device
     const requiresMfa = user.MfaActive && isNewDevice;
@@ -79,7 +79,7 @@ export const login = asyncHandler(async (req, res) => {
             action: "NEW_LOGIN",
             meta: { ip, device: deviceInfo }
         });
-        
+
     }
 
     // Save session
@@ -95,15 +95,15 @@ export const login = asyncHandler(async (req, res) => {
         sameSite: "strict",
         maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
     });
-    
 
-    
+
+
     res.status(200).json({
         success: true,
         message: "Login successful",
         accessToken
     });
-  
+
 });
 
 export const logout = asyncHandler(async (req, res) => {
@@ -176,7 +176,7 @@ export const refresh = asyncHandler(async (req, res) => {
     // Save new refresh token
     const ip = getIp(req);
     const deviceInfo = getDeviceInfo(req);
-    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
+    const fingerPrint = generateFingerPrint(user._id, deviceInfo);
     await sessionService.saveRefreshToken(user._id, newRefreshToken, ip, deviceInfo, fingerPrint);
 
     // Delete old refresh token
@@ -237,7 +237,7 @@ export const verifyMfaLogin = asyncHandler(async (req, res) => {
     const refreshToken = tokenService.generateRefreshToken(user);
 
     // Save session
-    const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
+    const fingerPrint = generateFingerPrint(user._id, deviceInfo);
     await sessionService.saveRefreshToken(user._id, refreshToken, ip, deviceInfo, fingerPrint);
 
     res.cookie("refreshtoken", refreshToken, {
@@ -266,7 +266,7 @@ export const resetMfa = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        massage: result.message,
+        message: result.message,
     });
 });
 
@@ -282,17 +282,17 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
 export const resetPassword = asyncHandler(async (req, res) => {
     const { token } = req.query;
-    const { Newpassword, confirmPassword } = req.body;
+    const { newPassword, confirmPassword } = req.body;
 
-    const result = await authService.resetPassword(token, Newpassword, confirmPassword, req);
+    const result = await authService.resetPassword(token, newPassword, confirmPassword, req);
     res.status(200).json(result);
 });
 
 export const changePassword = asyncHandler(async (req, res) => {
     const user = req.user;
-    const { currantPassword, newPassword, confirmPassword } = req.body;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
 
-    const result = await authService.changePassword(user, currantPassword, newPassword, confirmPassword, req);
+    const result = await authService.changePassword(user, currentPassword, newPassword, confirmPassword, req);
     res.status(200).json(result);
 });
 

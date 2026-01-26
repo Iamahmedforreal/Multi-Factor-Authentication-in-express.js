@@ -7,10 +7,10 @@ class TokenService {
     constructor() {
         this.accessTokenSecret = process.env.JWT_SECRET;
         this.refreshTokenSecret = process.env.JWT_REFRESH_SECRET;
-        this.temporaryTokenSecret = process.env.JWT_TEMPOROY;
+        this.temporaryTokenSecret = process.env.JWT_TEMPORARY_SECRET;
         this.accessTokenExpiry = process.env.JWT_EXPIRE || "7m";
         this.refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRE || "7d";
-        this.temporaryTokenExpiry = process.env.JWT_TEMPOROY_EXPIRES_IN || "10m";
+        this.temporaryTokenExpiry = process.env.JWT_TEMPORARY_EXPIRES_IN || "10m";
 
         // Validate required secrets on initialization
         if (!this.accessTokenSecret || !this.refreshTokenSecret || !this.temporaryTokenSecret) {
@@ -44,7 +44,7 @@ class TokenService {
      */
     generateRefreshToken(user) {
 
-        const jti = crypto.randomBytes(16).toString("hex"); 
+        const jti = crypto.randomBytes(16).toString("hex");
 
         const payload = {
             id: user._id.toString(),

@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import User from "../models/user.js";
 import { registerSchema, loginSchema, emailSchema } from "../validators/registerValidation.js";
-import { AuditLogFunction, recodLastLoginAttempt, checkAccountLogout } from "../utils/helper.js";
+import { AuditLogFunction, recordLastLoginAttempt, checkAccountLogout } from "../utils/helper.js";
 import emailService from "./emailService.js";
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24; // 24 hours
@@ -136,18 +136,18 @@ class AuthService {
         const lockedOut = await checkAccountLogout(user.email, ip);
 
         if (lockedOut.locked) {
-            recodLastLoginAttempt(user._id, ip, user.email, false);
+            recordLastLoginAttempt(user._id, ip, user.email, false);
             throw new Error(`ACCOUNT_LOCKED:${lockedOut.minutesRemaining}`);
         }
 
         // Check email verification
         if (!user.emailVerified) {
-             recodLastLoginAttempt(user._id, ip, user.email, false);
+            recordLastLoginAttempt(user._id, ip, user.email, false);
             throw new Error("EMAIL_NOT_VERIFIED");
         }
 
         // Record successful login attempt
-        recodLastLoginAttempt(user._id, ip, user.email, true);
+        recordLastLoginAttempt(user._id, ip, user.email, true);
 
         return {
             success: true,

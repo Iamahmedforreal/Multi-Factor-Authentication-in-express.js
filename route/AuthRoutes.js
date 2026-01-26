@@ -2,11 +2,11 @@ import express from "express";
 import passport from "passport";
 
 import {
-    loginRatelimit,
-    refreshratelimit,
-    resetPasswordConfirmRatelimit,
-    forgetpasswordratelimit,
-    mfaVerifyRatelimit
+    loginRateLimit,
+    refreshRateLimit,
+    resetPasswordConfirmRateLimit,
+    forgotPasswordRateLimit,
+    mfaVerifyRateLimit
 } from "../middleware/ratelimiter.js";
 
 import {
@@ -39,13 +39,13 @@ router.get("/verify-email", verifyEmail);
 router.post("/resend-email-verify", resendEmailVerification);
 
 // Authentication
-router.post("/login", loginRatelimit, passport.authenticate('local', { session: false }), login);
+router.post("/login", loginRateLimit, passport.authenticate('local', { session: false }), login);
 router.post("/logout", logout);
-router.get("/refresh", refreshratelimit, refresh);
+router.get("/refresh", refreshRateLimit, refresh);
 
 // Password Management
-router.post("/forgot-password", forgetpasswordratelimit, forgotPassword);
-router.post("/reset-password", resetPasswordConfirmRatelimit, resetPassword);
+router.post("/forgot-password", forgotPasswordRateLimit, forgotPassword);
+router.post("/reset-password", resetPasswordConfirmRateLimit, resetPassword);
 
 
 // PROTECTED ROUTES (JWT Required)
@@ -62,7 +62,7 @@ router.post("/logout-all", passport.authenticate('jwt', { session: false }), log
 
 // MFA Setup & Management
 router.post("/2fa/setup", passport.authenticate('jwt', { session: false }), setupMfa);
-router.post("/2fa/setup/verify", passport.authenticate('jwt', { session: false }), mfaVerifyRatelimit, verifyMfaSetup);
+router.post("/2fa/setup/verify", passport.authenticate('jwt', { session: false }), mfaVerifyRateLimit, verifyMfaSetup);
 router.post("/2fa/reset", passport.authenticate('jwt', { session: false }), resetMfa);
 
 
@@ -70,6 +70,6 @@ router.post("/2fa/reset", passport.authenticate('jwt', { session: false }), rese
 
 
 // MFA Login Verification
-router.post("/2fa/login/verify", passport.authenticate('temp-jwt', { session: false }), mfaVerifyRatelimit, verifyMfaLogin);
+router.post("/2fa/login/verify", passport.authenticate('temp-jwt', { session: false }), mfaVerifyRateLimit, verifyMfaLogin);
 
 export default router;
