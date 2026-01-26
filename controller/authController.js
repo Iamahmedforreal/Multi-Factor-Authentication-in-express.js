@@ -40,12 +40,14 @@ export const login = asyncHandler(async (req, res) => {
     // Validate login (email verification, account lockout)
     const validation = await authService.validateLogin(user, ip);
 
-    // Manage active sessions (enforce max limit)
-    await sessionService.manageActiveSessions(user._id);
-
-    // Generate device fingerprint to check if this is a new device
+    // Generate device fingerprint
     const fingerPrint = genrateFingerPrint(user._id, deviceInfo);
-    const isNewDevice = await sessionService.isNewDevice(user._id, fingerPrint);
+
+    // Parallelize session management and device check
+    const [_, isNewDevice] = await Promise.all([
+        sessionService.manageActiveSessions(user._id),
+        sessionService.isNewDevice(user._id, fingerPrint)
+    ]);
 
     // Check if MFA is: MFA enabled AND new device
     const requiresMfa = user.MfaActive && isNewDevice;
