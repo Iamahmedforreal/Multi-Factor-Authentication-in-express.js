@@ -4,6 +4,7 @@ import User from "../models/user.js";
 import { registerSchema, loginSchema, emailSchema } from "../validators/registerValidation.js";
 import { AuditLogFunction, recordLastLoginAttempt, checkAccountLogout } from "../utils/helper.js";
 import emailService from "./emailService.js";
+import { normalizeEmail } from "../utils/helper.js";
 
 const EMAIL_VERIFICATION_EXPIRY = 1000 * 60 * 60 * 24; // 24 hours
 const BCRYPT_ROUNDS = 12;
@@ -20,7 +21,10 @@ class AuthService {
         const data = registerSchema.parse(userData);
         const { email, password } = data;
 
+        email = normalizeEmail(email);
+
         // Check if user already exists
+        
         const existingUser = await User.findOne({ email: email.toUpperCase() });
         if (existingUser) {
             throw new Error("USER_ALREADY_EXISTS");
@@ -35,7 +39,7 @@ class AuthService {
 
         // Create new user
         const newUser = new User({
-            email: email.toUpperCase(),
+            email: email,
             password: hashpassword,
             emailVerificationToken: hashToken,
             emailVerificationTokenExpires: Date.now() + EMAIL_VERIFICATION_EXPIRY,
