@@ -1,8 +1,7 @@
-import RefreshTokenModel from "../models/token.js";
+
 import { AuditLogFunction, generateFingerPrint } from "../utils/helper.js";
-import mongoose from "mongoose";
 import crypto from "crypto";
-import { redis } from "../utils/radis.js";
+import { redis } from "../utils/redis.js";
 import tokenService from "./tokenService.js";
 
 
@@ -14,7 +13,7 @@ class SessionService {
      * Save refresh token and session metadata to redis
      * @param {string} userId - User ID
      * @param {string} token - Refresh token
-     * @returns {Promise<Object>} - Saved token to radis
+     * @returns {Promise<Object>} - Saved token to redis
      */
     async saveRefreshToken(userId , token , ip, deviceInfo, fingerPrint) {
         

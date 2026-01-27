@@ -9,7 +9,7 @@ import AuthRoutes from "./route/Authroutes.js";
 import "./config/passportConfig.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/logger.js";
-import { redis } from "./utils/radis.js";
+import { redis } from "./utils/redis.js";
 import emailWorker from "./workers/emailWorker.js";
 
 dotenv.config();
