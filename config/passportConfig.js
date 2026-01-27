@@ -5,6 +5,7 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Strategy as JwtStrategy, ExtractJwt } from "passport-jwt";
 import User from "../models/user.js";
+import { normalizeEmail } from "../utils/helper.js";
 
 
 //local strategy
@@ -14,6 +15,7 @@ passport.use(new LocalStrategy(
    async( email, password, done) => {
 
     try{
+    email = normalizeEmail(email);
     let user = await User.findOne({email});
     if(!user) return done(null, false , {message: "User not found"});
 
