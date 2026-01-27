@@ -112,3 +112,7 @@ export const buildKey = (action, ip, email) => {
     return `${action}:${ip}:${email}`;
 };
 
+// EMAIL normalization
+export const normalizeEmail = (email) => {
+    return email.trim().toLowerCase();
+}
