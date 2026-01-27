@@ -1,200 +1,163 @@
-import bucketSchema from "../models/ratelimit.js";
+import { redis } from "../utils/redis.js";
 import { buildKey, AuditLogFunction, getIp, getDeviceInfo } from "../utils/helper.js";
 import RefreshTokenModel from "../models/token.js";
 import eventEmitter from "./eventEmmit.js";
 
-
-
 const MAX_ATTEMPTS = 5;
-const MAX_WINDOW = 10;
-//login rate limit 
+const MAX_WINDOW_SECONDS = 10 * 60; // 10 minutes
+
+/**
+ * Generic Redis Rate Limiter Helper
+ * @param {string} key - Redis key
+ * @param {number} limit - Max attempts
+ * @param {number} windowSeconds - Time window in seconds
+ * @returns {Promise<{allowed: boolean, count: number, ttl: number}>}
+ */
+const rateLimit = async (key, limit, windowSeconds) => {
+    const multi = redis.multi();
+    multi.incr(key);
+    multi.ttl(key);
+
+    const results = await multi.exec();
+    const count = results[0][1];
+    let ttl = results[1][1];
+
+    // If key is new (ttl = -1), set expiration
+    if (count === 1) {
+        await redis.expire(key, windowSeconds);
+        ttl = windowSeconds;
+    }
+
+    return {
+        allowed: count <= limit,
+        count,
+        ttl
+    };
+};
+
+// Login rate limit 
 export const loginRateLimit = async (req, res, next) => {
-    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const ip = getIp(req);
     const email = req.body.email;
-    const now = new Date();
 
     if (!email) {
         return res.status(403).json({ error: "email not found" });
     }
+
     const key = buildKey("login", ip, email);
 
-    const bucket = await bucketSchema.findOneAndUpdate({
+    const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
-        key: key,
-        expiredAt: { $gte: now }// we looking for bucket that is not expired
-    },
-        {
-            $inc: { count: 1 },//after that if its not expired we increament 1
-            $setOnInsert: {//if user first time or it expired make new bucket
-                key: key,
-                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
-            }
-        },
-        { upsert: true, new: true }        //we  returns document after it increment (without it returns false meaning it will return the old count )
-    )
-    if (bucket.count > MAX_ATTEMPTS) { // check if the count if its more than limit block it 
-        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
+    if (!allowed) {
+        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
         const deviceInfo = getDeviceInfo(req);
         const meta = { ip, deviceInfo };
-        eventEmitter.emit('limit_hit', { email: email, action: "RATE_LIMIT_EXCEEDED", meta });
+        eventEmitter.emit('limit_hit', { email, action: "RATE_LIMIT_EXCEEDED", meta });
+
         return res.status(429).json({
-            error: "too many login attempts try again later",
-            retryAfter: bucket.expiredAt
-        })
+            error: "Too many login attempts, try again later",
+            retryAfter: Math.ceil(ttl / 60) // Return minutes
+        });
     }
     next();
-}
-//rate limit for reset-password  (when user submits email for reseting)
+};
+
+// Refresh token rate limit
 export const refreshRateLimit = async (req, res, next) => {
     const refreshToken = req.cookies.refreshtoken;
-    const now = new Date();
+
     if (!refreshToken) {
         return res.status(403).json({ error: "refresh token not found" });
     }
-    const token = await RefreshTokenModel.findOne({ token: refreshToken });
-    if (!token) {
-        return res.status(403).json({ error: "invalid refresh token" });
-    }
-    const key = `${"refresh"}:${token.userId}`
 
-    const bucket = await bucketSchema.findOneAndUpdate(
-        {
-            key: key,
-            expiredAt: { $gte: now }
-        },
-        {
-            $inc: { count: 1 },
-            $setOnInsert: {
-                key: key,
-                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
-            }
+    let userId = "unknown";
+    try {
+        const token = await RefreshTokenModel.findOne({ token: refreshToken });
+        if (!token) {
+            return res.status(403).json({ error: "invalid refresh token" });
         }
-        ,
-        { upsert: true, new: true }
-    )
-    if (bucket.count > MAX_ATTEMPTS) {
-        const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
-        await AuditLogFunction(token.userId || null, "RATE_LIMIT_BLOCKED", req, { key, bucketCount: bucket.count });
+        userId = token.userId;
+    } catch (err) {
+        return res.status(403).json({ error: "invalid token" });
+    }
+
+    const key = `refresh:${userId}`;
+    const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
+
+    if (!allowed) {
+        await AuditLogFunction(userId, "RATE_LIMIT_BLOCKED", req, { key, bucketCount: count });
         return res.status(429).json({
-            error: "too many refresh attempts try again later",
-            retryAfter: minutesLeft
+            error: "Too many refresh attempts, try again later",
+            retryAfter: Math.ceil(ttl / 60)
         });
     }
     next();
-}
-// rate limit for reset-password  (when user submits email for reseting)
+};
+
+// Forgot password rate limit
 export const forgotPasswordRateLimit = async (req, res, next) => {
-    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const ip = getIp(req);
     const email = req.body.email;
-    const now = new Date();
 
     if (!email) {
         return res.status(403).json({ error: "email not found" });
     }
-    const key = await buildKey("forgotpassword", ip, email);
-    const bucket = await bucketSchema.findOneAndUpdate(
-        {
-            key: key,
-            expiredAt: { $gte: now }
 
-        },
-        {
-            $inc: { count: 1 },
-            $setOnInsert: {
-                key: key,
-                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
-            }
-        },
-        { upsert: true, new: true }
-    )
+    const key = buildKey("forgotpassword", ip, email);
+    const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
-    if (bucket.count > MAX_ATTEMPTS) {
-        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
-
+    if (!allowed) {
+        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
         return res.status(429).json({
-            error: "too many forgot password attempts try again later",
-            retryAfter: bucket.expiredAt
+            error: "Too many forgot password attempts, try again later",
+            retryAfter: Math.ceil(ttl / 60)
         });
     }
     next();
-}
+};
 
-// rate limit for reset-password confirmation (when user submits new password)
+// Reset password confirm rate limit
 export const resetPasswordConfirmRateLimit = async (req, res, next) => {
-    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
-    const email = req.body?.email;
-    const now = new Date();
+    const ip = getIp(req);
+    const email = req.body.email;
 
     if (!email) {
         return res.status(403).json({ error: "email not found" });
     }
 
-    const key = await buildKey("resetpasswordconfirm", ip, email);
+    const key = buildKey("resetpasswordconfirm", ip, email);
+    const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
-    const bucket = await bucketSchema.findOneAndUpdate(
-        {
-            key: key,
-            expiredAt: { $gte: now }
-        },
-        {
-            $inc: { count: 1 },
-            $setOnInsert: {
-                key: key,
-                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
-            }
-        },
-        { upsert: true, new: true }
-    );
-
-    if (bucket.count > MAX_ATTEMP) {
-        const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
-        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: bucket.count });
+    if (!allowed) {
+        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
         return res.status(429).json({
-            error: "too many reset-password attempts, try again later",
-            retryAfterMinutes: minutesLeft
+            error: "Too many reset attempts, try again later",
+            retryAfter: Math.ceil(ttl / 60)
         });
     }
 
     next();
-}
+};
 
-// MFA verify rate limiter (applies to TOTP verify endpoints)
+// MFA verify rate limiter
 export const mfaVerifyRateLimit = async (req, res, next) => {
-
-    const ip = (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || null;
+    const ip = getIp(req);
     const userId = req?.user?._id?.toString() || req?.body?.userId || null;
-    const now = new Date();
 
     if (!userId) {
-        // fallback: we use ip-only key if no userId available
-        return res.status(400).json({ error: "user id required for rate limiting" });
+        return res.status(400).json({ error: "User ID required for rate limiting" });
     }
 
-    const key = `${"mfaverify"}:${userId}:${ip}`
+    const key = `mfaverify:${userId}:${ip}`;
+    const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
-    const bucket = await bucketSchema.findOneAndUpdate(
-        {
-            key: key,
-            expiredAt: { $gte: now }
-        },
-        {
-            $inc: { count: 1 },
-            $setOnInsert: {
-                key: key,
-                expiredAt: new Date(now.getTime() + MAX_WINDOW * 60 * 1000)
-            }
-        },
-        { upsert: true, new: true }
-    );
-
-    if (bucket.count > MAX_ATTEMP) {
-        const minutesLeft = Math.ceil((bucket.expiredAt.getTime() - now.getTime()) / 60000);
-        await AuditLogFunction(userId || null, "RATE_LIMIT_BLOCKED", req, { key, ip, bucketCount: bucket.count });
+    if (!allowed) {
+        await AuditLogFunction(userId, "RATE_LIMIT_BLOCKED", req, { key, ip, bucketCount: count });
         return res.status(429).json({
-            error: "too many mfa verify attempts, try again later",
-            retryAfterMinutes: minutesLeft
+            error: "Too many MFA verify attempts, try again later",
+            retryAfter: Math.ceil(ttl / 60)
         });
     }
 
     next();
-}
+};

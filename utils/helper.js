@@ -12,7 +12,7 @@ const MAX_LOGIN_ATTEMPT = 5;
  * 
  */
 export const getIp = (req) => {
-    return (req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()) || req?.ip || 'unknown';
+    return req.ip || 'unknown';
 };
 
 /**
@@ -25,7 +25,7 @@ export const getDeviceInfo = (req) => {
 /**
  * Generate device fingerprint hash
  */
-export  const generateFingerPrint = (userId, deviceInfo) => {
+export const generateFingerPrint = (userId, deviceInfo) => {
     const fingerPrint = `${userId}|${deviceInfo}`;
     return crypto.createHash('sha256').update(fingerPrint).digest('hex');
 };

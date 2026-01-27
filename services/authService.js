@@ -20,12 +20,13 @@ class AuthService {
         // Validate input
         const data = registerSchema.parse(userData);
         const { email, password } = data;
-
-        email = normalizeEmail(email);
+        
+        // Normalize email
+        const normalizedEmail = normalizeEmail(email);
 
         // Check if user already exists
-        
-        const existingUser = await User.findOne({ email: email.toUpperCase() });
+
+        const existingUser = await User.findOne({ email: normalizedEmail });
         if (existingUser) {
             throw new Error("USER_ALREADY_EXISTS");
         }

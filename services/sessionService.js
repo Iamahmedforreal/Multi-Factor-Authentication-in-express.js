@@ -170,9 +170,10 @@ class SessionService {
         if (!storedHash){
             throw new Error("REFRESH_TOKEN_EXPIRED_OR_INVALID");
         }
+        const metadata = JSON.parse(storedHash);
         const IncomingToken = crypto.createHash("sha256").update(token).digest("hex");
 
-        if (storedHash !== IncomingToken) {
+        if (metadata.hashedToken !== IncomingToken) {
             throw new Error("INVALID_REFRESH_TOKEN");
         }
         return { userId, jti }
