@@ -20,7 +20,7 @@ class AuthService {
         // Validate input
         const data = registerSchema.parse(userData);
         const { email, password } = data;
-        
+
         // Normalize email
         const normalizedEmail = normalizeEmail(email);
 
@@ -69,23 +69,25 @@ class AuthService {
      * @returns {Promise<Object>} - Verification result
      */
     async verifyEmail(token, req) {
+        //hash the token
         const hashToken = crypto.createHash("sha256").update(token).digest("hex");
-
+       
+        // Find user with matching token and valid expiry
         const user = await User.findOne({
             emailVerificationToken: hashToken,
             emailVerificationTokenExpires: { $gt: Date.now() }
         });
-
+        
         if (!user) {
             throw new Error("INVALID_OR_EXPIRED_TOKEN");
         }
-
+      // Update user verification status
         user.emailVerified = true;
         user.emailVerificationToken = undefined;
         user.emailVerificationTokenExpires = undefined;
 
         await user.save();
-        await AuditLogFunction(user._id, "EMAIL_VERIFIED", req);
+         AuditLogFunction(user._id, "EMAIL_VERIFIED", req);
 
         return {
             success: true,
@@ -118,10 +120,7 @@ class AuthService {
         user.emailVerificationTokenExpires = Date.now() + EMAIL_VERIFICATION_EXPIRY;
         await user.save();
 
-        await emailService.sendEmailVerification(user.email, token).catch((err) => {
-            console.error("Error sending email:", err);
-        });
-
+        await emailService.sendEmailVerification(user.email, token)
         AuditLogFunction(user._id, "EMAIL_VERIFICATION_SENT", req);
 
         return {
@@ -213,7 +212,7 @@ class AuthService {
         });
 
         if (!user) {
-            await AuditLogFunction(null, "PASSWORD_RESET_FAILED", req, { hashedToken });
+             AuditLogFunction(null, "PASSWORD_RESET_FAILED", req, { hashedToken });
             throw new Error("INVALID_OR_EXPIRED_TOKEN");
         }
 
