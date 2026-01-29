@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import cors from "cors";
 import dbConnection from "./config/dbConnection.js";
-import AuthRoutes from "./route/Authroutes.js";
+import AuthRoutes from "./route/AuthRoutes.js";
 import "./config/passportConfig.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/logger.js";

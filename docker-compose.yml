@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # 1. Your Application
+  api:
+    build: .
+    ports:
+      - "7000:7000"  # Map localhost:7000 to container:7000
+    env_file:
+      - .env
+    environment:
+      # NETWORKING OVERRIDES
+      # These must override the values in your .env file because
+      # inside Docker, 'localhost' means the container itself.
+      
+      - REDIS_HOST=redis
+      - MONGODB_URI=mongodb://host.docker.internal:27017/mfa-auth
+      - PORT=7000
+    depends_on:
+      - redis
+
+  # 2. Redis Container
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379" # Optional: only if you want to access redis from your PC
