@@ -40,7 +40,7 @@ graph TD
     
     subgraph Background Infrastructure
     Queue -->|Consumes Jobs| Worker[Email Worker]
-    Worker -->|Sends| SMTP[SMTP Server (Gmail)]
+    Worker -->|Sends| SMTP["SMTP Server (Gmail)"]
     end
 ```
 
