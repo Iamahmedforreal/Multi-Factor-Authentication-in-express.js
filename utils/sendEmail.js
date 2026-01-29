@@ -1,5 +1,4 @@
-// Legacy email utilities - now delegates to emailService
-// This file maintained for backwards compatibility
+
 import emailService from '../services/emailService.js';
 
 export const sendEmailVerification = async (email, token) => {
