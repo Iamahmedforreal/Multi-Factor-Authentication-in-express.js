@@ -172,41 +172,6 @@ The server will initialize on `http://localhost:7000`.
 3.  The API responds immediately to the client to ensure low latency.
 4.  The `EmailWorker` consumes the job and sends the email in the background.
 
-### Sequence Diagram
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant API
-    participant DB as MongoDB
-    participant Redis
-    participant Email as EmailWorker
-
-    Note over User, Email: Registration
-    User->>API: POST /register
-    API->>DB: Check & Create User
-    API->>Redis: Queue Email Job
-    Redis->>Email: Process Job
-    Email-->>User: Send Verification Link
-    API-->>User: 200 OK
-
-    Note over User, Email: Login (Adaptive MFA)
-    User->>API: POST /login
-    API->>DB: Verify Credentials
-    API->>Redis: Check Device Fingerprint
-
-    alt Known Device / MFA Disabled
-        API->>Redis: Store Session
-        API-->>User: 200 OK (Tokens)
-    else New Device & MFA Enabled
-        API-->>User: 200 OK (Temp Token)
-        User->>API: POST /2fa/verify (TOTP)
-        API->>DB: Verify Code
-        API->>Redis: Store Session & Trust Device
-        API-->>User: 200 OK (Tokens)
-    end
-```
-
 ---
 
 ## API Reference
