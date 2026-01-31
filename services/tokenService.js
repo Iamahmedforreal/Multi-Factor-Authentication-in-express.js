@@ -1,7 +1,5 @@
+import 'dotenv/config';
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
-
-dotenv.config();
 import crypto from "crypto";
 class TokenService {
     constructor() {
@@ -14,7 +12,12 @@ class TokenService {
 
         // Validate required secrets on initialization
         if (!this.accessTokenSecret || !this.refreshTokenSecret || !this.temporaryTokenSecret) {
-            throw new Error("JWT secrets not configured properly in environment variables");
+            const missing = [];
+            if (!this.accessTokenSecret) missing.push('JWT_SECRET');
+            if (!this.refreshTokenSecret) missing.push('JWT_REFRESH_SECRET');
+            if (!this.temporaryTokenSecret) missing.push('JWT_TEMPORARY_SECRET');
+
+            throw new Error(`JWT secrets not configured properly in environment variables. Missing: ${missing.join(', ')}`);
         }
     }
 

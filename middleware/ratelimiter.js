@@ -1,7 +1,7 @@
 import { redis } from "../utils/redis.js";
 import { buildKey, AuditLogFunction, getIp, getDeviceInfo } from "../utils/helper.js";
-import RefreshTokenModel from "../models/token.js";
 import eventEmitter from "./eventEmmit.js";
+import jwt from "jsonwebtoken"; // Import jwt to decode directly
 
 const MAX_ATTEMPTS = 5;
 const MAX_WINDOW_SECONDS = 10 * 60; // 10 minutes
@@ -49,7 +49,7 @@ export const loginRateLimit = async (req, res, next) => {
     const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
     if (!allowed) {
-         AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
+        AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
         const deviceInfo = getDeviceInfo(req);
         const meta = { ip, deviceInfo };
         eventEmitter.emit('limit_hit', { email, action: "RATE_LIMIT_EXCEEDED", meta });
@@ -72,13 +72,18 @@ export const refreshRateLimit = async (req, res, next) => {
 
     let userId = "unknown";
     try {
-        const token = await RefreshTokenModel.findOne({ token: refreshToken });
-        if (!token) {
-            return res.status(403).json({ error: "invalid refresh token" });
+        // Decode without verifying signature just to get the ID for rate limiting
+        // Real verification happens in the controller/service
+        const decoded = jwt.decode(refreshToken);
+        if (decoded && decoded.id) {
+            userId = decoded.id;
+        } else {
+            // If we can't decode it, it's garbage. Limit by IP instead?
+            // Or just fail. Let's fallback to IP if no ID.
+            userId = getIp(req);
         }
-        userId = token.userId;
     } catch (err) {
-        return res.status(403).json({ error: "invalid token" });
+        userId = getIp(req);
     }
 
     const key = `refresh:${userId}`;
@@ -107,7 +112,7 @@ export const forgotPasswordRateLimit = async (req, res, next) => {
     const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
     if (!allowed) {
-         AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
+        AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
         return res.status(429).json({
             error: "Too many forgot password attempts, try again later",
             retryAfter: Math.ceil(ttl / 60)

@@ -129,6 +129,19 @@ The server will initialize on `http://localhost:7000`.
 
 ---
 
+## 🐳 Running with Docker (Recommended)
+
+Run the entire application (App + Redis + MongoDB) with a single command:
+
+```bash
+docker-compose up --build
+```
+*   **API**: `http://localhost:7000`
+*   **Redis**: `localhost:6379`
+*   **MongoDB**: `localhost:27017`
+
+---
+
 ## Project Structure
 
 ```

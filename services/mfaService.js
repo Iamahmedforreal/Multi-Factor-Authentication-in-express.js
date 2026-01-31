@@ -1,8 +1,8 @@
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
-import RefreshTokenModel from "../models/token.js";
 import { mfaVerifySchema } from "../validators/registerValidation.js";
 import { AuditLogFunction } from "../utils/helper.js";
+import sessionService from "./sessionService.js";
 
 class MfaService {
     /**
@@ -34,7 +34,7 @@ class MfaService {
 
         const qrImage = await qrCode.toDataURL(url);
 
-         AuditLogFunction(user._id, "MFA_SETUP_INITIATED", req);
+        AuditLogFunction(user._id, "MFA_SETUP_INITIATED", req);
 
         return {
             qrImage,
@@ -128,7 +128,7 @@ class MfaService {
         await user.save();
 
         // Revoke all sessions when MFA is disabled (security measure)
-        await RefreshTokenModel.deleteMany({ userId: user._id });
+        await sessionService.revokeAllSessions(user._id, req);
 
         AuditLogFunction(user._id, "MFA_DISABLED", req);
 

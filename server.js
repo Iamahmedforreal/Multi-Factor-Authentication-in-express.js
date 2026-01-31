@@ -1,5 +1,5 @@
+import 'dotenv/config';
 import express from "express";
-import dotenv from "dotenv";
 import passport from "passport";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -12,7 +12,6 @@ import { requestLogger } from "./middleware/logger.js";
 import { redis } from "./utils/redis.js";
 import emailWorker from "./workers/emailWorker.js";
 
-dotenv.config();
 
 const app = express();
 app.set('trust proxy', 1);
