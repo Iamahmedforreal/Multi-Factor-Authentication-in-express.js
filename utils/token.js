@@ -1,5 +1,4 @@
-// Legacy token utilities - now delegates to tokenService
-// This file maintained for backwards compatibility
+
 import tokenService from '../services/tokenService.js';
 
 export const generateAccessToken = (user) => {

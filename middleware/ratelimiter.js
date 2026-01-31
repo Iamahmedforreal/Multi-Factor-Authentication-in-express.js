@@ -49,7 +49,7 @@ export const loginRateLimit = async (req, res, next) => {
     const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
     if (!allowed) {
-        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
+         AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
         const deviceInfo = getDeviceInfo(req);
         const meta = { ip, deviceInfo };
         eventEmitter.emit('limit_hit', { email, action: "RATE_LIMIT_EXCEEDED", meta });
@@ -107,7 +107,7 @@ export const forgotPasswordRateLimit = async (req, res, next) => {
     const { allowed, count, ttl } = await rateLimit(key, MAX_ATTEMPTS, MAX_WINDOW_SECONDS);
 
     if (!allowed) {
-        await AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
+         AuditLogFunction(null, "RATE_LIMIT_BLOCKED", req, { key, email, ip, bucketCount: count });
         return res.status(429).json({
             error: "Too many forgot password attempts, try again later",
             retryAfter: Math.ceil(ttl / 60)

@@ -34,7 +34,7 @@ export const resendEmailVerification = asyncHandler(async (req, res) => {
 
 export const login = asyncHandler(async (req, res) => {
 
-    const user = req.user; // From passport middleware
+    const user = req.user; 
     const ip = getIp(req);
     const deviceInfo = getDeviceInfo(req);
 

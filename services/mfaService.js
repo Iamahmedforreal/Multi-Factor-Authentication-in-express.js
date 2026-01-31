@@ -1,6 +1,5 @@
 import speakeasy from "speakeasy";
 import qrCode from "qrcode";
-import User from "../models/user.js";
 import RefreshTokenModel from "../models/token.js";
 import { mfaVerifySchema } from "../validators/registerValidation.js";
 import { AuditLogFunction } from "../utils/helper.js";

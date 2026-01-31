@@ -11,7 +11,7 @@ const redisConfig = {
         const delay = Math.min(times * 50, 2000);
         return delay;
     },
-    maxRetriesPerRequest: null,  // Required for BullMQ
+    maxRetriesPerRequest: null,  
     enableReadyCheck: false
 };
 
