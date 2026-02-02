@@ -30,11 +30,11 @@ const emailWorker = new Worker(EMAIL_QUEUE_NAME, async (job) => {
         }
     } catch (error) {
         console.error(`Failed to process email job ${job.id}:`, error);
-        throw error; // Let BullMQ handle retries
+        throw error; 
     }
 }, {
     connection: redis,
-    concurrency: 5 // Process up to 5 emails in parallel
+    concurrency: 5 
 });
 
 emailWorker.on('completed', (job) => {
