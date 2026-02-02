@@ -34,14 +34,17 @@ passport.use(new LocalStrategy(
   
 ));
 
+//jwt strategy
 passport.use( new JwtStrategy(
     {
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
         secretOrKey: process.env.JWT_SECRET
     },
+    //callback function for verifying if user owns the token
     async (payload, done) => {
+
         try {
-            const user = await User.findById(payload.id);
+          const user = await User.findById(payload.id);
             if (!user) return done(null, false);
 
             return done(null, user);
@@ -53,7 +56,7 @@ passport.use( new JwtStrategy(
   
 ));
 
-    
+//temporary jwt strategy    
 passport.use(
   "temp-jwt",
   new JwtStrategy(
