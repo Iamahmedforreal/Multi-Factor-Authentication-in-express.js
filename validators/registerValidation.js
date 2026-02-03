@@ -31,6 +31,7 @@ export const resetPasswordSchema = z.object({
         .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Password must contain at least one specil character")
 })
 
+// MFA verification schema validation
 export const mfaVerifySchema = z.object({
     token: z.string()
         .length(6, "Code must be 6 digits")
