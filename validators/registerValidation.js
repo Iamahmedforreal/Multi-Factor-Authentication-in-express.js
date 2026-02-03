@@ -1,4 +1,5 @@
 import { z } from "zod";
+// Registration schema validation
 export const registerSchema = z.object({
     email: z.string().email(),
     password: z.string()
