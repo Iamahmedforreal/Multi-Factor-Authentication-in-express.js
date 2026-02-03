@@ -14,7 +14,7 @@ export const loginSchema = z.object({
     email: z.string().email("Invalid email format").trim(),
     password: z.string().min(1, "Password is required")
 });
-
+// Password reset schema validation
 export const resetPasswordSchema = z.object({
     newPassword: z.string()
         .min(8, "Password must be at least 8 characters long")
