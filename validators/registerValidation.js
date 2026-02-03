@@ -37,7 +37,7 @@ export const mfaVerifySchema = z.object({
         .length(6, "Code must be 6 digits")
         .regex(/^\d+$/, "Code must contain only digits")
 })
-
+// Email schema validation
 export const emailSchema = z.object({
     email: z.string().email().toLowerCase().trim()
 
